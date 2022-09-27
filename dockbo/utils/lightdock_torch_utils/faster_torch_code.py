@@ -1,18 +1,23 @@
 import torch 
 from pytorch3d import transforms
+from pathlib import Path
 from dockbo.utils.lightdock_torch_utils.scoring.functions import ScoringFunction
 from dockbo.utils.lightdock_torch_utils.lightdock_constants import (
     TH_DEVICE,
     TH_DTYPE,
     DEFAULT_CONTACT_RESTRAINTS_CUTOFF,
-    DEFAULT_REC_NM_FILE,
-    NUMPY_FILE_SAVE_EXTENSION,
-    DEFAULT_LIG_NM_FILE
+    DEFAULT_LIGHTDOCK_PREFIX,
+    DEFAULT_ANM_RMSD,
+    DEFAULT_MASK_FILE,
+    STARTING_NM_SEED
 )
 from dockbo.utils.lightdock_torch_utils.setup_sim import read_input_structure
-from dockbo.utils.lightdock_torch_utils.structure.nm import read_nmodes
+from dockbo.utils.lightdock_torch_utils.structure.nm import calculate_nmodes
 from dockbo.utils.lightdock_torch_utils.scoring.dfire2_driver import DefinedModelAdapter 
 from dockbo.utils.lightdock_torch_utils.boundaries import get_default_box
+from dockbo.utils.lightdock_torch_utils.lightdock_errors import LightDockError
+from dockbo.utils.lightdock_torch_utils.PDBIO import write_pdb_to_file, write_mask_to_file
+import copy 
 
 
 def get_bbox_tensor(setup):
@@ -26,45 +31,106 @@ def get_bbox_tensor(setup):
 def get_coords(adapter):
     receptor_coords = torch.cat([torch.from_numpy(c.coordinates).to(device=TH_DEVICE, dtype=TH_DTYPE) for c in adapter.receptor_model.coordinates])
     ligand_coords = torch.cat([torch.from_numpy(c.coordinates).to(device=TH_DEVICE, dtype=TH_DTYPE) for c in adapter.ligand_model.coordinates])
-
     return receptor_coords, ligand_coords 
     
 
-def get_indicies(adapter):
+def get_receptor_indicies(adapter):
     res_index = []
     atom_index = []
     for o in adapter.receptor_model.objects:
         res_index.append(o.residue_index)
         atom_index.append(o.atom_index)
     last = res_index[-1]
+    return res_index, atom_index, last 
+
+
+def get_ligand_indicies(adapter):
+    res_index = []
+    atom_index = []
     for o in adapter.ligand_model.objects:
-        res_index.append(o.residue_index + last)
+        res_index.append(o.residue_index)  # + last)
         atom_index.append(o.atom_index)
+    return res_index, atom_index
+
+
+def get_indicies(adapter, ligand_indicies):
+    res_index, atom_index, last  = get_receptor_indicies(adapter) 
+    if ligand_indicies is None:
+        ligand_indicies = get_ligand_indicies(adapter)
+    ligand_res_indicies, ligand_atom_indicies = ligand_indicies
+    ligand_res_indicies = [res_idx + last for res_idx in ligand_res_indicies] 
+    res_index = res_index + ligand_res_indicies
+    atom_index = atom_index + ligand_atom_indicies
     res_index = torch.tensor(res_index, dtype=torch.long, device=TH_DEVICE)
     atom_index = torch.tensor(atom_index, dtype=torch.long, device=TH_DEVICE)
     
     return res_index, atom_index 
 
 
-def get_adapter(receptor, ligand):
-    # This line takes a while but only needs to be done once per receptor/ligand pair
-    adapter = DefinedModelAdapter(receptor, ligand, None, None) 
-    for i in range(len(receptor.atom_coordinates)):
-        adapter.receptor_model.coordinates[i].coordinates = receptor.atom_coordinates[i].coordinates
-        adapter.ligand_model.coordinates[i].coordinates = ligand.atom_coordinates[i].coordinates
-
+def init_adapter(ligand ):
+    adapter = DefinedModelAdapter(
+        receptor=None, 
+        ligand=ligand,
+    ) 
     return adapter 
 
 
-def prep_receptor_and_ligand(setup):
-    # Use some lightdock prep stuff to get the data we need
+def update_adapter(adapter, receptor, ligand, new_ligand=False ):
+    # adapter = DefinedModelAdapter(receptor, ligand, None, None) 
+    new_adapter = copy.deepcopy(adapter)
+    # set new antibody receptor 
+    new_adapter.set_receptor_model(receptor, None)
+    if new_ligand:
+        new_adapter.set_ligand_model(ligand, None)
+    for i in range(len(receptor.atom_coordinates)):
+        new_adapter.receptor_model.coordinates[i].coordinates = receptor.atom_coordinates[i].coordinates
+        new_adapter.ligand_model.coordinates[i].coordinates = ligand.atom_coordinates[i].coordinates
+
+    return new_adapter
+
+
+def calculate_anm(structure, num_nmodes, rmsd, seed): # , file_name):
+    """Calculates ANM for representative structure"""
+    original_file_name = structure.structure_file_names[structure.representative_id]
+    # We have to use the parsed structure by LightDock
+    parsed_lightdock_structure = Path(original_file_name).parent / Path(
+        DEFAULT_LIGHTDOCK_PREFIX % Path(original_file_name).name
+    )
+    modes = calculate_nmodes(parsed_lightdock_structure, num_nmodes, rmsd, seed, structure)
+    return torch.tensor(modes, dtype=TH_DTYPE, device=TH_DEVICE)
+
+
+def save_lightdock_structure(structure):
+    """Saves the structure parsed by LightDock"""
+    for structure_index, file_name in enumerate(structure.structure_file_names):
+        moved_file_name = Path(file_name).parent / Path(
+            DEFAULT_LIGHTDOCK_PREFIX % Path(file_name).name
+        )
+        if not moved_file_name.exists():
+            # only write lightdock file if it doesn't alreay exist 
+            write_pdb_to_file(structure, moved_file_name, structure[structure_index])
+        mask_file_name = Path(file_name).parent / Path(
+            DEFAULT_MASK_FILE % Path(file_name).stem
+        )
+        if not mask_file_name.exists():
+             # only write corresponding mask file if it doesn't alreay exist 
+            write_mask_to_file(structure.nm_mask, mask_file_name)
+
+
+def prep_receptor(setup):
     receptor = read_input_structure(setup['receptor_pdb'], setup['noxt'], setup['noh'], setup['now'], setup['verbose_parser'])
-    ligand = read_input_structure(setup['ligand_pdb'], setup['noxt'], setup['noh'], setup['now'], setup['verbose_parser'])
     receptor.move_to_origin()
+    save_lightdock_structure(receptor)
+    receptor.n_modes = calculate_anm(receptor, setup['anm_rec'], DEFAULT_ANM_RMSD, STARTING_NM_SEED) # , DEFAULT_REC_NM_FILE)
+    return receptor 
+
+
+def prep_ligand(setup):
+    ligand = read_input_structure(setup['ligand_pdb'], setup['noxt'], setup['noh'], setup['now'], setup['verbose_parser'])
     ligand.move_to_origin()
-    receptor.n_modes = torch.tensor(read_nmodes(f"{DEFAULT_REC_NM_FILE}{NUMPY_FILE_SAVE_EXTENSION}"), dtype=TH_DTYPE, device=TH_DEVICE)
-    ligand.n_modes = torch.tensor(read_nmodes(f"{DEFAULT_LIG_NM_FILE}{NUMPY_FILE_SAVE_EXTENSION}"), dtype=TH_DTYPE, device=TH_DEVICE)
-    return receptor, ligand 
+    save_lightdock_structure(ligand)
+    ligand.n_modes = calculate_anm(ligand, setup['anm_lig'], DEFAULT_ANM_RMSD, STARTING_NM_SEED) # , DEFAULT_LIG_NM_FILE)
+    return ligand 
 
 
 def calculate_dfire2_torch(
@@ -102,6 +168,7 @@ def calculate_dfire2_torch(
     energy = potentials[atom_index_is,atom_index_js,good_dists].sum()/100.0
 
     return energy, set(interface_receptor), set(interface_ligand)
+
 
 def dfire2_torch(
     ld_sol,

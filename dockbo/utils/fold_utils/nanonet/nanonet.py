@@ -79,10 +79,7 @@ class NanoNet(StructurePredictor):
 
         # for now the multiple seqs thing is broken... 
         assert len(sequences) == 1
-
-        print("temp_out_dir", temp_out_dir)
         for f in os.listdir(temp_out_dir):
-            print("f", f)
             if f[-3:] != 'pdb':  # sometimes there are hidden ipynb checkpoint files you need to skip
                 continue
             if len(f.split('_')[0]) < 15:  # one of the new structures
@@ -97,7 +94,7 @@ class NanoNet(StructurePredictor):
                     # seq_n = int(seq_n)
                     # print("seq_n 3", seq_n)
                     new_f = f"{str(uuid.uuid4())}_{self.name}_{'side_chains' if self.side_chains else 'bb'}.pdb"
-                    print("new_f", new_f)
+                    # print("new_f", new_f)
                     os.rename(
                         os.path.join(temp_out_dir, f),
                         os.path.join(temp_out_dir, new_f)
@@ -123,6 +120,5 @@ if __name__ == "__main__":
         os.mkdir(save_nanonet_pdb_files_directory)
     nanonet = NanoNet(out_dir=save_nanonet_pdb_files_directory)
     paths_to_new_pdb_files, _ = nanonet.fold(protein_sequences, store=True)
-    print(f'New pdb file for example seq 1 is stored at : {paths_to_new_pdb_files[0]}')
-    print(f'New pdb file for example seq 2 is stored at : {paths_to_new_pdb_files[1]}')
-
+    # print(f'New pdb file for example seq 1 is stored at : {paths_to_new_pdb_files[0]}')
+    # print(f'New pdb file for example seq 2 is stored at : {paths_to_new_pdb_files[1]}')

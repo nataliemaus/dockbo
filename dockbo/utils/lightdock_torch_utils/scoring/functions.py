@@ -50,10 +50,22 @@ class ModelAdapter(object):
     """
 
     def __init__(
-        self, receptor, ligand, receptor_restraints=None, ligand_restraints=None
+        self, receptor=None, ligand=None, receptor_restraints=None, ligand_restraints=None
     ):
+        if receptor is not None:
+            self.set_receptor_model(receptor, receptor_restraints)
+        if ligand is not None:
+            self.set_ligand_model(ligand, ligand_restraints)
+
+        # self.receptor_model = self._get_docking_model(receptor, receptor_restraints)
+        # self.ligand_model = self._get_docking_model(ligand, ligand_restraints)
+
+    def set_receptor_model(self, receptor, receptor_restraints=None):
         self.receptor_model = self._get_docking_model(receptor, receptor_restraints)
+
+    def set_ligand_model(self, ligand, ligand_restraints=None):
         self.ligand_model = self._get_docking_model(ligand, ligand_restraints)
+
 
     def _get_docking_model(self, protein, restraints):
         """Complex -> DockingModel interface"""

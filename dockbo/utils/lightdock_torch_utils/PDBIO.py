@@ -2,10 +2,15 @@
 
 import math
 from os import linesep
+import numpy as np
 from dockbo.utils.lightdock_torch_utils.lightdock_errors import PDBParsingError, PDBParsingWarning
 from dockbo.utils.lightdock_torch_utils.structure.atom import Atom, HetAtom
 from dockbo.utils.lightdock_torch_utils.structure.residue import Residue
 from dockbo.utils.lightdock_torch_utils.structure.chain import Chain
+
+def write_mask_to_file(nm_mask, mask_file_name):
+    """Saves the indexes of atoms involved in ANM"""
+    np.save(mask_file_name, nm_mask)
 
 
 def cstrip(string):
