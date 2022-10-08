@@ -6,9 +6,8 @@ import os
 import shutil
 import uuid
 import torch
+from scipy.spatial import KDTree
 from dockbo.utils.lightdock_torch_utils.lightdock_constants import (
-    TH_DEVICE,
-    TH_DTYPE,
     DEFAULT_NMODES_REC,
     DEFAULT_NMODES_LIG,
 )
@@ -18,15 +17,21 @@ from dockbo.utils.lightdock_torch_utils.faster_torch_code import (
     dfire2_torch,
     prep_receptor,
     prep_ligand,
-    init_adapter,
     update_adapter,
     get_indicies,
-    get_ligand_indicies,
+    get_receptor_indicies,
     get_coords,
     get_bbox_tensor,
+    get_dfire_score,
+    get_numbs,
+    get_anumas,
 )
-from dockbo.utils.bo_utils.bo_utils import TurboState, update_state, generate_batch, get_surr_model
+from dockbo.utils.lightdock_torch_utils.feasibility_utils import is_valid_config
 import time 
+from dockbo.utils.lightdock_torch_utils.scoring.dfire_driver import DefinedScoringFunction as dfireOracle
+from dockbo.utils.lightdock_torch_utils.scoring.dfire2_driver import DefinedModelAdapter as Dfire2Adapter
+from dockbo.utils.lightdock_torch_utils.scoring.dfire_driver import DefinedModelAdapter as DfireAdapter
+from dockbo.utils.bo_utils.run_turbo import run_turbo
 
 class DockBO():
 
@@ -49,7 +54,12 @@ class DockBO():
         anm_rec=DEFAULT_NMODES_REC,
         anm_lig=DEFAULT_NMODES_LIG,
         verbose_timing=False,
+        scoring_func='dfire',
+        is_receptor='antibody',
     ):
+        self.is_receptor = is_receptor
+        self.scoring_func = scoring_func 
+        assert scoring_func in ['dfire', 'dfire2']
         self.verbose_timing = verbose_timing 
         start_init = time.time() 
         # temporary directory for lightdock files 
@@ -59,29 +69,53 @@ class DockBO():
             os.mkdir(self.pdb_dir)
 
         # LightDock Args:
-        self.potentials = DFIRE2Potential(work_dir=work_dir) 
         self.setup = {
-            'use_anm':use_anm,
-            'anm_rec':anm_rec,
-            'anm_lig':anm_lig,
-            'noxt':True, 'noh':True, 'now':True,
-            'verbose_parser':False,
+            'use_anm':use_anm, 'anm_rec':anm_rec,'anm_lig':anm_lig,
+            'noxt':True, 'noh':True, 'now':True,'verbose_parser':False,
         }
-        self.bounding_box = get_bbox_tensor(self.setup)
+        self.bounding_box = get_bbox_tensor(self.setup) 
         if path_to_default_antigen_pdb is not None:
             # copy antibody to simulation directoy
             os.system(f"cp {path_to_default_antigen_pdb} {self.pdb_dir}")
             self.default_antigen_path = self.pdb_dir + '/' + path_to_default_antigen_pdb.split('/')[-1]
-            # prep antigen ligand
-            self.setup['ligand_pdb'] = self.default_antigen_path 
-            self.default_ligand = prep_ligand(self.setup)
+            # prep antigen as receptor! 
+            if self.is_receptor == 'antigen':
+                self.setup['receptor_pdb'] = self.default_antigen_path 
+                self.default_receptor, _ = prep_receptor(self.setup)
+            elif self.is_receptor == 'antibody':
+                self.setup['ligand_pdb'] = self.default_antigen_path 
+                self.default_ligand, _ = prep_ligand(self.setup)
         else:
             self.default_antigen_path = None 
+            self.default_receptor = None
             self.default_ligand = None
-        self.default_adapter = init_adapter(self.default_ligand )
+
+        if self.scoring_func == 'dfire':
+            AdapterClass = DfireAdapter
+            self.dfire_oracle = dfireOracle(work_dir=work_dir) 
+        elif self.scoring_func == 'dfire2':
+            AdapterClass = Dfire2Adapter
+            self.potentials = DFIRE2Potential(work_dir=work_dir)
+
+        self.default_adapter = AdapterClass(
+            receptor=self.default_receptor, 
+            ligand=self.default_ligand,
+        )
+        if (self.scoring_func == 'dfire'):
+            if self.default_receptor is not None:
+                self.default_rec_numas = get_anumas(self.default_adapter.receptor_model)
+            else:
+                self.default_rec_numas = None
+            if self.default_ligand is not None:
+                self.default_lig_numas = get_numbs(self.default_adapter.ligand_model)
+            else:
+                self.default_lig_numas = None
+
+        self.default_receptor_indicies = None 
+        if self.default_receptor is not None:
+            self.default_receptor_indicies = get_receptor_indicies(self.default_adapter )
+
         self.default_ligand_indicies = None 
-        if self.default_ligand is not None:
-            self.default_ligand_indicies = get_ligand_indicies(self.default_adapter )
 
         # TuRBO ARGS: 
         self.max_n_bo_steps = max_n_bo_steps 
@@ -89,7 +123,7 @@ class DockBO():
         self.bsz = bsz
         self.n_epochs = n_epochs
         self.learning_rte = learning_rte
-        self.previous_best_config = None 
+        self.best_config = None 
         self.verbose_config_opt = verbose_config_opt
 
         # FOLD ARGS:
@@ -118,7 +152,6 @@ class DockBO():
         if verbose_timing:
             print(f"Time to complete oracle init: {time.time() - start_init}")
 
-
     def __call__(
         self,
         path_to_antigen_pdb=None,
@@ -144,11 +177,6 @@ class DockBO():
                 config_x = config_x.squeeze()
             assert len(config_x) == 27 
             config_x = torch.clamp(config_x, self.bounding_box[:,0], self.bounding_box[:,1]) 
-            
-
-        # if no new antigen path is given, use default ligand 
-        if path_to_antigen_pdb is None:
-            assert self.default_ligand is not None
         
         # grab original work dir
         self.og_dir = os.getcwd()
@@ -165,7 +193,7 @@ class DockBO():
         else: 
             temp_pdb_dir = self.pdb_dir + '/' + str(uuid.uuid1())
             os.mkdir(temp_pdb_dir) 
-            # copy antibody to working directoy 
+            # copy antibody to working directoy
             os.system(f"cp {path_to_antibody_pdb} {temp_pdb_dir}")
             path_to_antibody_pdb = temp_pdb_dir + '/' + path_to_antibody_pdb.split('/')[-1]
 
@@ -190,7 +218,6 @@ class DockBO():
 
         return top_score 
 
-
     def fold_protein(self, protein_seq):
         if self.fold_software == 'nanonet':
             # create pdb files with nanonet
@@ -213,7 +240,6 @@ class DockBO():
 
         return pdb_path, temp_out_dir
 
-
     def prep_lightdock(
         self,
         directory,
@@ -224,30 +250,59 @@ class DockBO():
         os.chdir(directory)
 
         # if we have a path to a new antigen pdb, read it in and prep antigen
-        #   otherwise, we assume defaul ligand   
+        #   otherwise, we assume defaul receptor antigan  
+        new_receptor, new_ligand = False, False 
         if path_to_antigen_pdb is not None:
             # copy antibody to simulation directoy
             os.system(f"cp {path_to_antigen_pdb} {directory}")
             antigen_path = directory + '/' + path_to_antigen_pdb.split('/')[-1]
             # prep antigen ligand
-            self.setup['ligand_pdb'] = antigen_path
-            self.ligand = prep_ligand(self.setup)
-            new_ligand = True
+            if self.is_receptor == 'antigen':
+                self.setup['receptor_pdb'] = antigen_path
+                self.receptor, _ = prep_receptor(self.setup)
+                new_receptor = True
+            elif self.is_receptor == 'antibody':
+                self.setup['ligand_pdb'] = antigen_path
+                self.ligand, _ = prep_ligand(self.setup)
+                new_ligand = True
         else:
-            self.setup['ligand_pdb'] = self.default_antigen_path 
-            self.ligand = self.default_ligand 
-            new_ligand = False
+            if self.is_receptor == 'antigen':
+                self.setup['receptor_pdb'] = self.default_antigen_path 
+                self.receptor = self.default_receptor  
+            elif self.is_receptor == 'antibody':
+                self.setup['ligand_pdb'] = self.default_antigen_path 
+                self.ligand = self.default_ligand 
         
-        # prep antibody receptor 
-        self.setup['receptor_pdb'] = antibody_path
-        self.receptor = prep_receptor(self.setup) 
+        # prep antibody ligand 
+        if self.is_receptor == 'antigen':
+            self.setup['ligand_pdb'] = antibody_path
+            self.ligand, self.lig_translation = prep_ligand(self.setup) 
+        elif self.is_receptor == 'antibody':
+            self.setup['receptor_pdb'] = antibody_path
+            self.receptor, self.rec_translation = prep_receptor(self.setup) 
+
         # update adapter 
-        self.adapter = update_adapter(self.default_adapter, self.receptor, self.ligand, new_ligand=new_ligand )
+        self.adapter = update_adapter(
+            self.default_adapter,
+            self.receptor,
+            self.ligand,
+            new_receptor=new_receptor,
+            new_ligand=new_ligand,
+        )
         # get combined indicies for receptor and ligand 
-        self.res_index, self.atom_index = get_indicies(self.adapter, self.default_ligand_indicies)
+        self.res_index, self.atom_index = get_indicies(self.adapter, self.default_receptor_indicies)
         # get coords for receptor and ligand 
         self.receptor_coords, self.ligand_coords = get_coords(self.adapter)
 
+        if (self.scoring_func == 'dfire'):
+            if new_receptor:
+                self.rec_numas = get_anumas(self.adapter.receptor_model)
+            else:
+                self.rec_numas = self.default_rec_numas
+            if new_ligand:
+                self.lig_numbs = get_numbs(self.adapter.ligand_model)
+            else:
+                self.lig_numbs = self.default_lig_numas
 
     def run_docking(
         self,
@@ -267,13 +322,16 @@ class DockBO():
             print(f'prep ligthdock time: {time.time() - start}')
         # if not config specified, use TuRBO to find optimal config (config that maximizes score)
         start = time.time() 
+        check_validity_utils = self.get_check_validity_utils()
         if config_x is None: 
-            best_config, best_score = self.optimize_configuration() 
-            self.previous_best_config = best_config
+            best_config, best_score = self.optimize_configuration(check_validity_utils) 
+            self.best_config = best_config
         # otherwise, use given config_x (27,) to get score
         else:
+            # make sure given config_x is valid (x,y,z loc falls outside of receptor)
+            assert is_valid_config(config_x, check_validity_utils)
             best_score = self.get_lightdock_score(config_x)
-            self.previous_best_config = config_x.unsqueeze(0)
+            self.best_config = config_x.unsqueeze(0)
         if self.verbose_timing:
             print(f'compute score time: {time.time() - start}')
 
@@ -281,85 +339,57 @@ class DockBO():
 
 
     def get_lightdock_score(self, x):
-        if type(x) != list:
-            x = x.tolist()
-        score = dfire2_torch(
-            x,
-            self.receptor_coords,
-            self.ligand_coords, 
-            self.res_index, 
-            self.atom_index, 
-            self.potentials, 
-            self.adapter.receptor_model.restraints, 
-            self.adapter.ligand_model.restraints,
-            setup=self.setup,
-            receptor=self.receptor,
-            ligand=self.ligand,
-        )
-
+        if self.scoring_func == 'dfire2':
+            if type(x) != list:
+                x = x.squeeze().tolist()
+            score = dfire2_torch(
+                x,
+                self.receptor_coords,
+                self.ligand_coords, 
+                self.res_index, 
+                self.atom_index, 
+                self.potentials, 
+                self.adapter.receptor_model.restraints, 
+                self.adapter.ligand_model.restraints,
+                setup=self.setup,
+                receptor=self.receptor,
+                ligand=self.ligand,
+            )
+        elif self.scoring_func == 'dfire':
+            score = get_dfire_score(
+                x,
+                self.setup,
+                self.receptor,
+                self.ligand,
+                self.receptor_coords,
+                self.ligand_coords,
+                self.dfire_oracle,
+                self.lig_numbs,
+                self.rec_numas,
+                self.adapter,
+            )
         return score 
 
 
-    def optimize_configuration(self):
-        # GOAL: Find optimal ld_sol (27 numbers) within bounds given by bounding_box
-        #   which are the optimal configuraiton of ligand and protein to get max score 
-        lower_bounds = self.bounding_box[:,0].cuda() 
-        upper_bounds = self.bounding_box[:,1].cuda()
-        bound_range = (upper_bounds - lower_bounds).cuda() 
+    def get_check_validity_utils(self):
+        '''Define check_validity_utils dict of all items needed 
+            to check validity of new config_x (check if it is inside receptor)
+        '''
+        check_validity_utils = {} 
+        check_validity_utils['receptor_kd_tree']  = KDTree(self.receptor_coords.detach().cpu().numpy()  )
+        return check_validity_utils
 
-        # xs normalized 0 to 1, unnormalize to get lightdock scores 
-        def unnormalize(x):
-            unnormalized = x.cuda()*bound_range + lower_bounds
-            return unnormalized 
 
-        # Initialization data
-        train_x = torch.rand(self.n_init, 27)  # random between 0 and 1 
-        if self.previous_best_config is not None: # initialize w/ best config from previous opt
-            train_x = torch.cat((train_x, self.previous_best_config)) 
-        train_y = [self.get_lightdock_score(unnormalize(x)) for x in train_x]
-        train_y = torch.tensor(train_y).float().unsqueeze(-1)
-
-        # Run TuRBO 
-        turbo_state = TurboState() 
-        for _ in range(self.max_n_bo_steps): 
-            # get surr model updated on data 
-            surr_model = get_surr_model( 
-                train_x=train_x,
-                train_y=train_y,
-                n_epochs=self.n_epochs,
-                learning_rte=self.learning_rte,
-            )
-            # generate batch of candidates in trust region w/ thompson sampling
-            x_next = generate_batch(
-                state=turbo_state,
-                model=surr_model,  # GP model
-                X=train_x,  # Evaluated points on the domain [0, 1]^d
-                Y=train_y,  # Function values
-                batch_size=self.bsz,
-                dtype=TH_DTYPE,
-                device=TH_DEVICE,
-            )
-            # compute scores for batch of candidates 
-            y_next = [self.get_lightdock_score(unnormalize(x)) for x in x_next]
-            y_next = torch.tensor(y_next).float().unsqueeze(-1)
-            # update data 
-            train_x = torch.cat((train_x, x_next.detach().cpu()))
-            train_y = torch.cat((train_y, y_next)) 
-            # update turbo state 
-            turbo_state = update_state(turbo_state, y_next)
-            if self.verbose_config_opt:
-                print(f'N configs evaluated:{len(train_y)}, best config score:{train_y.max().item()}')
-
-        best_score = train_y.max().item() 
-        best_config = train_x[train_y.argmax()].squeeze().unsqueeze(0)
-
-        # best_config
-        # tensor([[0.6578, 0.3866, 0.9290, 0.3974, 0.5406, 0.4401, 0.4125, 0.3368, 0.3825,
-        #  0.4919, 0.9924, 0.9122, 0.1150, 0.5077, 0.2370, 0.0897, 0.3209, 0.8278,
-        #  0.9107, 0.1867, 0.6293, 0.0325, 0.4872, 0.4158, 0.8804, 0.4152, 0.3239]])
-        # best score: 684,672
-
+    def optimize_configuration(self, check_validity_utils):
+        best_score, best_config = run_turbo(
+            self.bounding_box,
+            self.n_init,
+            check_validity_utils,
+            self.max_n_bo_steps,
+            self.bsz,
+            self.n_epochs,
+            self.learning_rte,
+            self.verbose_config_opt,
+            self.get_lightdock_score,
+        )
         return best_config, best_score  
-
-# python3 example.py /home/nmaus/
-

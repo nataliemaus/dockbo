@@ -1,7 +1,6 @@
 import sys
 sys.path.append("../")
 import math
-import pdb
 import torch
 from dataclasses import dataclass
 from torch.quasirandom import SobolEngine
@@ -10,6 +9,7 @@ import gpytorch
 from gpytorch.mlls import PredictiveLogLikelihood
 from .ppgpr import GPModel 
 from torch.utils.data import TensorDataset, DataLoader
+from dockbo.utils.lightdock_torch_utils.feasibility_utils import is_valid_config
 
 
 @dataclass
@@ -58,6 +58,8 @@ def generate_batch(
     model,  # GP model
     X,  # Evaluated points on the domain [0, 1]^d
     Y,  # Function values
+    check_validity_utils, # receptor atom coords, etc. used to check if X_cands are valid 
+    unnormalize_func, # function to unnormalize x (used in validity checking)
     batch_size=1,
     dtype=torch.float32,
     device=torch.device('cuda'),
@@ -89,6 +91,17 @@ def generate_batch(
     X_cand = x_center.expand(n_candidates, dim).clone()
     X_cand = X_cand.cuda()
     X_cand[mask] = pert[mask]
+
+    # filter out candidates which are invalid 
+    uX = unnormalize_func(X_cand)
+    valid_samples = []
+    for ux_ in uX:
+        valid_samples.append(is_valid_config(ux_, check_validity_utils))
+    valid_samples = torch.tensor(valid_samples) # bool tensor 
+    X_cand = X_cand[valid_samples]
+    if len(X_cand) == 0: # if left with 0 valid samples, 
+        raise RuntimeError ("No valid X's suggested")
+    # print("time to filter:", time.time() - start) # 0.12 to 0.15 
 
     # Sample on the candidate points 
     thompson_sampling = MaxPosteriorSampling(model=model, replacement=False) 
@@ -131,4 +144,3 @@ def get_surr_model(
     model = model.eval()
 
     return model
-

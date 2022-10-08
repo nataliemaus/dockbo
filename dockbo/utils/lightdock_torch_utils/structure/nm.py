@@ -46,7 +46,9 @@ def calculate_nmodes(pdb_file_name, n_modes, rmsd, seed, molecule):
         molecule.get_atoms(protein=True, nucleic=True, dummy=False),
         prody_molecule_prot_nuc.iterAtoms(),
     ):
+        # Natalie debug: print("Atoms: %s - %s" % (str(lightdock_atom), str(prody_atom)) )
         if lightdock_atom.name != prody_atom.getName():
+            print("Atoms differ: %s - %s" % (str(lightdock_atom), str(prody_atom)) )
             raise NormalModesCalculationError(
                 "Atoms differ: %s - %s" % (str(lightdock_atom), str(prody_atom))
             )
