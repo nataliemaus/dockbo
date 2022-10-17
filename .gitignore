@@ -20,3 +20,5 @@ v1_no_constraints_antibody_is_receptor/
 v1_no_constraints_antibody_is_receptor/*
 pdbs/
 pdbs/*
+bothrestrained_lightdock_poses/
+bothrestrained_lightdock_poses/*
