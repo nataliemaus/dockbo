@@ -15,6 +15,68 @@ os.environ["WANDB_SILENT"] = "True"
 import wandb 
 
 
+def create_restraint_file(args_dict, pdbs_dir, antibody_id=None, antigen_id=None):
+    path_to_new_restrains = args_dict['work_dir'] + 'dockbo/example/temp_restraints/'
+    if args_dict['receptor_is'] == 'antibody':
+        antibody_char = "R"
+        antigen_char = "L"
+    elif args_dict['receptor_is'] == 'antigen':
+        antibody_char = "L"
+        antigen_char = "R"
+    else:
+        raise RuntimeError("invalid is receptor")
+    restraints = []
+    if args_dict['restrain_antibody']: 
+        path_to_new_restrains = path_to_new_restrains + 'antibody' + antibody_id 
+        antibody_restraint_file = pdbs_dir + f"{antibody_id}" + "_antibody_restraints.pdb"
+        f = open(antibody_restraint_file, "r")
+        data = f.read() 
+        data = data.split('\n')
+        prev_idx = 0
+        for dat in data:
+            if dat.startswith('ATOM'):
+                dat = dat.split()
+                residue = dat[3]
+                chain = dat[4]
+                idx = dat[5]
+                try:
+                    idx = int(idx)
+                except:
+                    pass 
+                if (type(idx) == int) and (chain in ['A', 'B', 'C']) and (type(residue) == str):
+                    if idx != prev_idx:
+                        restraints.append(antibody_char + " " + chain + "." + residue + "." + str(idx))
+                        prev_idx = idx 
+        f.close()
+    if args_dict['restrain_antigen']:
+        path_to_new_restrains = path_to_new_restrains + 'antigen' + antigen_id 
+        antigen_restraint_file = pdbs_dir + f"{antigen_id}" + "_antigen_restraints.pdb"
+        f = open(antigen_restraint_file, "r")
+        data = f.read() 
+        data = data.split('\n')
+        prev_idx = 0
+        # 30, 36, 42
+        for dat in data:
+            if dat.startswith('ATOM'):
+                dat = dat.split()
+                residue = dat[3]
+                chain = dat[4]
+                idx = dat[5]
+                if idx != prev_idx:
+                    restraints.append(antigen_char + " " + chain + "." + residue + "." + idx)
+                    prev_idx = idx 
+        f.close()
+
+    
+    path_to_new_restrains = path_to_new_restrains + '_restraints.list' 
+    if not os.path.exists(path_to_new_restrains) :
+        f2 = open(path_to_new_restrains, "a") 
+        for item in restraints:
+            f2.write(item + '\n') 
+        f2.close()  
+    return path_to_new_restrains
+
+
 def set_seed(seed):
     assert type(seed) == int
     # The flag below controls whether to allow TF32 on matmul. This flag defaults to False
@@ -146,21 +208,37 @@ def run(args_dict): # test dfire
 def bighat(args_dict): # test dfire 
     tracker = start_wandb(args_dict) 
     if args_dict['seed'] is not None:
-        set_seed(args_dict['seed'])
-
+        set_seed(args_dict['seed']) 
     # /home/nmaus/dockbo/example/pdbs/bighat_verification2/6lfo_antibody.pdb
     if args_dict['bighat_version'] == 'v1':
-        bighatpdbs = ['7a4t', '7qcq', '5ivn', '7a48', '2x6m', '6i2g'] 
+        bighatpdbs = ['2x6m', '6i2g', '7a4t', '7qcq', '5ivn', '7a48'] 
         pdbs_dir = f"dockbo/example/pdbs/bighat_verification/"
     elif args_dict['bighat_version'] == 'v2':
-        bighatpdbs = ['6lfo', '7s7r', '5j57', '6knm', '7p16']
+        bighatpdbs = ['7p16', '6lfo', '7s7r', '5j57', '6knm']
         pdbs_dir = f"dockbo/example/pdbs/bighat_verification2/"
+
+    # TEST MADE FILES 
+    debug = False 
+    if debug:
+        pdbs_dir = f"dockbo/example/pdbs/bighat_verification2/"
+        pdbs_dir = args_dict['work_dir'] + pdbs_dir 
+        bighatpdbs = ['7p16', '6lfo', '7s7r', '5j57', '6knm']
+        for ab in bighatpdbs:
+            for ag in bighatpdbs:
+                create_restraint_file(args_dict, pdbs_dir, antibody_id=ab, antigen_id=ag) 
+        bighatpdbs = ['2x6m', '6i2g', '7a4t', '7qcq', '5ivn', '7a48'] 
+        pdbs_dir = f"dockbo/example/pdbs/bighat_verification/"
+        pdbs_dir = args_dict['work_dir'] + pdbs_dir 
+        for ab in bighatpdbs:
+            for ag in bighatpdbs:
+                create_restraint_file(args_dict, pdbs_dir, antibody_id=ab, antigen_id=ag) 
+        import sys 
+        sys.exit() 
 
     n_evals = 0  
     data_list = [] 
-    for antigen_pdb_id in bighatpdbs:
+    for antigen_pdb_id in [bighatpdbs[args_dict['antigen_idx']] ]:
         antigen_path = pdbs_dir + f"{antigen_pdb_id}_antigen.pdb"  
-
         if args_dict['oracle'] == 'dockbo' or args_dict['oracle'] == 'both':
             dockbo = DockBO(
                 work_dir=args_dict['work_dir'],
@@ -180,11 +258,15 @@ def bighat(args_dict): # test dfire
                 scoring=args_dict['lightdock_scoring_func'], # use default (fast-dfire) validated by bighat! 
                 fold_software=None,
                 remove_temp_dir=args_dict['remove_temp_dir'], 
-                pdb_dir=args_dict['lightdock_temp_dir'] + f'_antigen{antigen_pdb_id}/',
+                pdb_dir=args_dict['lightdock_temp_dir'] + f'_antigen{antigen_pdb_id}',
                 receptor_is=args_dict['receptor_is'],
-            ) 
-
-        for antibody_pdb_id in bighatpdbs:
+            )   
+        
+        if args_dict['antibody_idx'] is None: 
+            antibody_pdbs = bighatpdbs 
+        else:
+            antibody_pdbs = [bighatpdbs[args_dict['antibody_idx']] ]
+        for antibody_pdb_id in antibody_pdbs:
             antibody_path = args_dict['work_dir'] + pdbs_dir + f"{antibody_pdb_id}_antibody.pdb" # antibody_w_waters.pdb" 
             log_dict = {} 
             if args_dict['oracle'] == 'dockbo' or args_dict['oracle'] == 'both':
@@ -192,12 +274,15 @@ def bighat(args_dict): # test dfire
                 times = []
                 for run in range(args_dict['avg_over']):
                     start = time.time() 
-                    dbo_score1 = dockbo(
-                        path_to_antigen_pdb=None, # No antigen path specified --> use default (aviods recomputing default structure)
-                        antibody_aa_seq=None, 
-                        path_to_antibody_pdb= antibody_path, # same_nanonet_pdb_antibody, # None, # option to pass in antibody pdb file direction, otherwise we fold seq
-                        config_x=None,
-                    )
+                    try:
+                        dbo_score1 = dockbo(
+                            path_to_antigen_pdb=None, # No antigen path specified --> use default (aviods recomputing default structure)
+                            antibody_aa_seq=None, 
+                            path_to_antibody_pdb=antibody_path, # same_nanonet_pdb_antibody, # None, # option to pass in antibody pdb file direction, otherwise we fold seq
+                            config_x=None,
+                        )
+                    except:
+                        dbo_score1 = -1e10000 # if faillure due to bad restrains file 
                     # get best config vector which maximized score 
                     # best_config = dockbo.best_config 
                     dockbo_scores.append(dbo_score1)
@@ -212,11 +297,19 @@ def bighat(args_dict): # test dfire
                 dockbo_avg_score = None 
                 dockbo_std_score = None 
             if args_dict['oracle'] == 'lightdock' or args_dict['oracle'] == 'both':
+                if args_dict['restrain_antibody'] or args_dict['restrain_antigen']: 
+                    restraint_file = create_restraint_file(args_dict, args_dict['work_dir'] + pdbs_dir, antibody_id=antibody_pdb_id, antigen_id=antigen_pdb_id)
+                else: 
+                    restraint_file = "" 
+                lightdock.restraint_file = restraint_file
                 start = time.time() 
-                lightdock_score = lightdock(
-                    protein_string=None,
-                    antibody_file=antibody_path,
-                )
+                try:
+                    lightdock_score = lightdock(
+                        protein_string=None,
+                        antibody_file=antibody_path,
+                    )
+                except:
+                    lightdock_score = -1e10000 
                 log_dict['lightdock_score'] = lightdock_score
                 log_dict['lightdock_time'] = time.time() - start 
             else:
@@ -232,8 +325,7 @@ def bighat(args_dict): # test dfire
             table1 = wandb.Table(columns=cols, data=data_list)
             tracker.log({f"results_table": table1})
 
-        tracker.finish() 
-        sys.exit() 
+    tracker.finish() 
 
 
 if __name__ == "__main__": 
@@ -253,12 +345,18 @@ if __name__ == "__main__":
 
     parser.add_argument('--oracle', default='lightdock')  # lightdock, dockbo, or both 
     parser.add_argument('--lightdock_scoring_func', default='')  # "" --> fast dfire!, or do dfire, or dfire2
-    parser.add_argument('--lightdock_temp_dir', default='dockbo/example/lightdock_temp')  # fast dfire! 
     parser.add_argument('--remove_temp_dir', type=bool, default=False) # remove swarm files, etc. made by lightdock
     parser.add_argument('--receptor_is', default='antibody')  # receptor = antibody, ligand = antigen!  
-    parser.add_argument('--bighat_version', default='v2')  # v1 or v2 (which set of antibody/antigen pairs to use)
     parser.add_argument('--n_runs', type=int, default=100 )
     parser.add_argument('--n_runs2', type=int, default=200 )
+
+    # only things to change: 
+    parser.add_argument('--bighat_version', default='v2')  # v1 or v2 (which set of antibody/antigen pairs to use)
+    parser.add_argument('--restrain_antibody', type=bool, default=True)
+    parser.add_argument('--restrain_antigen', type=bool, default=True ) 
+    parser.add_argument('--lightdock_temp_dir', default='dockbo/example/lightdock_bothrestrained')  # fast dfire! 
+    parser.add_argument('--antigen_idx', type=int, default=0 ) # for this antigen, do all antibodies 
+    parser.add_argument('--antibody_idx', type=int, default=None ) # for this antigen, do all antibodies 
 
     args = parser.parse_args() 
     args_dict = vars(args) 
@@ -268,3 +366,8 @@ if __name__ == "__main__":
         bighat(args_dict)
     else:
         run(args_dict)
+
+# elif args_dict['bighat_version'] == 'v2':
+#   bighatpdbs = ['7p16', '6lfo', '7s7r', '5j57', '6knm']
+# conda activate og_lolbo_mols
+# CUDA_VISIBLE_DEVICES=0 python3 dockbo_lightdock_correlation.py --bighat_version v2 --antigen_idx 2 --antibody_idx 1

@@ -2,7 +2,6 @@ import sys
 sys.path.append("../")
 from dockbo.dockbo import DockBO
 
-
 def example1(): 
     try:
         work_dir = sys.argv[1]
