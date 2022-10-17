@@ -366,8 +366,10 @@ if __name__ == "__main__":
         bighat(args_dict)
     else:
         run(args_dict)
-
+        
+# if args_dict['bighat_version'] == 'v1':
+#         bighatpdbs = ['2x6m', '6i2g', '7a4t', '7qcq', '5ivn', '7a48'] 
 # elif args_dict['bighat_version'] == 'v2':
 #   bighatpdbs = ['7p16', '6lfo', '7s7r', '5j57', '6knm']
 # conda activate og_lolbo_mols
-# CUDA_VISIBLE_DEVICES=0 python3 dockbo_lightdock_correlation.py --bighat_version v2 --antigen_idx 2 --antibody_idx 1
+# CUDA_VISIBLE_DEVICES=1 python3 dockbo_lightdock_correlation.py --bighat_version v1 --antigen_idx 5 --antibody_idx 5
