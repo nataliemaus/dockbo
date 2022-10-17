@@ -2,12 +2,10 @@ wandb/
 wandb/*
 __pycache__/
 __pycache__/*
-*.ipynb
 temp_pdbs/
 temp_pdbs/*
 notes.py
 *table.csv
-*.ipynb 
 pdbs/
 pdbs/*
 example/lightdock_*
