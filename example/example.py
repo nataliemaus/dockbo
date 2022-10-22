@@ -9,7 +9,6 @@ def example1():
         work_dir = '/home/nmaus/'
     same_nanonet_pdb_antibody = work_dir + "dockbo/example/pdbs/83edaa7c-6f9f-488c-8baa-55c92d52dce1_nanonet_bb.pdb"
 
-
     oracle = DockBO(
         work_dir=work_dir,
         verbose_config_opt=True, # print progress during BO 
@@ -255,8 +254,7 @@ def example3(): # test dfire
     # Score=1510.666015625, and should be: -1535.28530623
     # Score=1491.0162353515625, and should be: -1489.42750471
     # Score=1488.0440673828125, and should be: -1495.4536348
-    
+
 
 if __name__ == "__main__":
-    # example1() 
     example3() 

@@ -42,7 +42,7 @@ def collect_lightdock_best_pdbs(
 
 if __name__ == "__main__": 
     collect_lightdock_best_pdbs(
-        file_prefix='lightdock_bothrestrained_',
-        k=10,
-        save_dir='bothrestrained_lightdock_poses/'
+        file_prefix='lightdock_bothrestrainedv3_',
+        k=20,
+        save_dir='bothrestrainedv3_lightdock_poses/'
     )

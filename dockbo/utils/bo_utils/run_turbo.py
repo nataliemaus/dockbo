@@ -17,6 +17,7 @@ def run_turbo(
     learning_rte,
     verbose_config_opt,
     get_lightdock_score,
+    max_n_tr_restarts,
 ):
     # GOAL: Find optimal ld_sol (27 numbers) within bounds given by bounding_box
     #   which are the optimal configuraiton of ligand and protein to get max score 
@@ -71,6 +72,7 @@ def run_turbo(
     # print(f"max of init train y: {train_y.max()}")
 
     # Run TuRBO 
+    num_restarts = 0 
     turbo_state = TurboState() 
     for _ in range(max_n_bo_steps): 
         # get surr model updated on data 
@@ -104,23 +106,14 @@ def run_turbo(
         train_y = torch.cat((train_y, y_next)) 
         # update turbo state 
         turbo_state = update_state(turbo_state, y_next)
+        if turbo_state.restart_triggered: # if restart triggered, new state
+            turbo_state = TurboState() 
+            num_restarts += 1
         if verbose_config_opt:
             print(f'N configs evaluated:{len(train_y)}, best config score:{train_y.max().item()}')
-        
-        # if train_y.max().item() > 100:# 2_000_000:
-        #     import pdb 
-        #     pdb.set_trace() 
-            # 0/6625=0.0000 of ligand atoms within convex hull of receptor.
-            # 0/6625=0.0000 of ligand atoms within 3.0 of any receptor atom.
-            # Final score: 2095398.25
-            # best_config = unnormalize(train_x[train_y.argmax()].squeeze()).unsqueeze(0).detach().cpu()
-            #         tensor([[ 6.6545, 21.6246, 21.1632, -0.0414,  0.0878,  0.1561,  0.0299,  0.6081,
-            # 0.6224,  0.7779,  0.7415,  0.7350,  0.7381,  0.3700,  0.4001,  0.6139,
-            # 0.0349,  0.6773,  0.5559,  0.2530,  0.5940,  0.0309,  0.2715,  0.7529,
-            # 0.5724,  0.6441,  0.2677]])
-            # check_score = self.get_lightdock_score(best_config)
-        
-        # max of init train y: -427.98565673828125
+        if num_restarts >= max_n_tr_restarts:
+            break 
+
     best_score = train_y.max().item() 
     best_config = unnormalize(train_x[train_y.argmax()].squeeze()).unsqueeze(0).detach().cpu()
 

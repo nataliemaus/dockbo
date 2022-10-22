@@ -16,7 +16,13 @@ import wandb
 
 
 def create_restraint_file(args_dict, pdbs_dir, antibody_id=None, antigen_id=None):
-    path_to_new_restrains = args_dict['work_dir'] + 'dockbo/example/temp_restraints/'
+    path_to_new_restrains = args_dict['work_dir'] + 'dockbo/example/temp_restraints'
+    if args_dict['restraintsv3']:
+        path_to_new_restrains = args_dict['work_dir'] + 'dockbo/example/temp_restraintsv3'
+    if not os.path.exists(path_to_new_restrains) :
+        os.mkdir(path_to_new_restrains)
+    path_to_new_restrains = path_to_new_restrains + '/'
+
     if args_dict['receptor_is'] == 'antibody':
         antibody_char = "R"
         antigen_char = "L"
@@ -29,6 +35,9 @@ def create_restraint_file(args_dict, pdbs_dir, antibody_id=None, antigen_id=None
     if args_dict['restrain_antibody']: 
         path_to_new_restrains = path_to_new_restrains + 'antibody' + antibody_id 
         antibody_restraint_file = pdbs_dir + f"{antibody_id}" + "_antibody_restraints.pdb"
+        if args_dict['restraintsv3'] and antigen_id == '5j57':
+            antibody_restraint_file = pdbs_dir + f"{antibody_id}" + "_antibody_restraints_v3.pdb"
+
         f = open(antibody_restraint_file, "r")
         data = f.read() 
         data = data.split('\n')
@@ -43,7 +52,7 @@ def create_restraint_file(args_dict, pdbs_dir, antibody_id=None, antigen_id=None
                     idx = int(idx)
                 except:
                     pass 
-                if (type(idx) == int) and (chain in ['A', 'B', 'C']) and (type(residue) == str):
+                if (type(idx) == int) and (chain in ['A', 'B', 'C', 'S']) and (type(residue) == str):
                     if idx != prev_idx:
                         restraints.append(antibody_char + " " + chain + "." + residue + "." + str(idx))
                         prev_idx = idx 
@@ -51,6 +60,8 @@ def create_restraint_file(args_dict, pdbs_dir, antibody_id=None, antigen_id=None
     if args_dict['restrain_antigen']:
         path_to_new_restrains = path_to_new_restrains + 'antigen' + antigen_id 
         antigen_restraint_file = pdbs_dir + f"{antigen_id}" + "_antigen_restraints.pdb"
+        if args_dict['restraintsv3'] and antigen_id == '5j57':
+            antigen_restraint_file = pdbs_dir + f"{antigen_id}" + "_antigen_restraints_v3.pdb"
         f = open(antigen_restraint_file, "r")
         data = f.read() 
         data = data.split('\n')
@@ -353,23 +364,40 @@ if __name__ == "__main__":
     # only things to change: 
     parser.add_argument('--bighat_version', default='v2')  # v1 or v2 (which set of antibody/antigen pairs to use)
     parser.add_argument('--restrain_antibody', type=bool, default=True)
-    parser.add_argument('--restrain_antigen', type=bool, default=True ) 
-    parser.add_argument('--lightdock_temp_dir', default='dockbo/example/lightdock_bothrestrained')  # fast dfire! 
+    parser.add_argument('--restrain_antigen', type=bool, default=True) 
+    # parser.add_argument('--lightdock_temp_dir', default='dockbo/example/lightdock_abrestrained') 
     parser.add_argument('--antigen_idx', type=int, default=0 ) # for this antigen, do all antibodies 
     parser.add_argument('--antibody_idx', type=int, default=None ) # for this antigen, do all antibodies 
+    parser.add_argument('--restraintsv3', type=bool, default=False ) # improved 5j57 restraints (v3) 
 
     args = parser.parse_args() 
     args_dict = vars(args) 
 
+    if args_dict['restrain_antibody'] and args_dict['restrain_antigen']:
+        args_dict['lightdock_temp_dir'] = 'dockbo/example/lightdock_bothrestrained'
+    elif args_dict['restrain_antibody']:
+        args_dict['lightdock_temp_dir'] = 'dockbo/example/lightdock_abrestrained'
+    elif args_dict['restrain_antigen']:
+        args_dict['lightdock_temp_dir'] = 'dockbo/example/lightdock_agrestrained'
+    else:
+        args_dict['lightdock_temp_dir'] = 'dockbo/example/lightdock_norestraints'
+    
+    if args_dict['restraintsv3']:
+        args_dict['lightdock_temp_dir'] = args_dict['lightdock_temp_dir'] + 'v3'
+
+    print(args_dict['lightdock_temp_dir'])
     # tmux attach -t bighat , bighat2 
     if args_dict['bighat']:
         bighat(args_dict)
     else:
         run(args_dict)
-        
+
 # if args_dict['bighat_version'] == 'v1':
 #         bighatpdbs = ['2x6m', '6i2g', '7a4t', '7qcq', '5ivn', '7a48'] 
 # elif args_dict['bighat_version'] == 'v2':
 #   bighatpdbs = ['7p16', '6lfo', '7s7r', '5j57', '6knm']
 # conda activate og_lolbo_mols
-# CUDA_VISIBLE_DEVICES=1 python3 dockbo_lightdock_correlation.py --bighat_version v1 --antigen_idx 5 --antibody_idx 5
+# python3 dockbo_lightdock_correlation.py --lightdock_scoring_func dfire2 --bighat_version v2 --antigen_idx 4 --antibody_idx 4
+
+# done ag 0, 1 w/ all abs 
+# TODO other ags with all abs ... (meh)

@@ -9,6 +9,8 @@ import gpytorch
 from gpytorch.mlls import PredictiveLogLikelihood
 from .ppgpr import GPModel 
 from torch.utils.data import TensorDataset, DataLoader
+from botorch.acquisition import qExpectedImprovement
+from botorch.optim import optimize_acqf
 from dockbo.utils.lightdock_torch_utils.feasibility_utils import is_valid_config
 
 
@@ -72,40 +74,45 @@ def generate_batch(
     tr_lb = torch.clamp(x_center - weights * state.length / 2.0, 0.0, 1.0)
     tr_ub = torch.clamp(x_center + weights * state.length / 2.0, 0.0, 1.0)
 
-    # thompson samplling: 
-    dim = X.shape[-1]
-    sobol = SobolEngine(dim, scramble=True)
-    pert = sobol.draw(n_candidates).to(dtype=dtype).cuda()
-    tr_lb = tr_lb.cuda()
-    tr_ub = tr_ub.cuda()
-    pert = tr_lb + (tr_ub - tr_lb) * pert
+    # # use expected imporvement (does not work for filtering invalid cands )
+    # ei = qExpectedImprovement(model.cuda(), Y.max().cuda() ) 
+    # X_next, _ = optimize_acqf(ei,bounds=torch.stack([tr_lb, tr_ub]).cuda(),q=batch_size, num_restarts=10,raw_samples=256,)
 
-    # Create a perturbation mask
-    prob_perturb = min(20.0 / dim, 1.0)
-    mask = (torch.rand(n_candidates, dim, dtype=dtype, device=device)<= prob_perturb)
-    ind = torch.where(mask.sum(dim=1) == 0)[0]
-    mask[ind, torch.randint(0, dim - 1, size=(len(ind),), device=device)] = 1
-    mask = mask.cuda()
+    TS = True # needed for filtering of invaid candidates 
+    if TS: # thompson samplling: 
+        dim = X.shape[-1]
+        sobol = SobolEngine(dim, scramble=True)
+        pert = sobol.draw(n_candidates).to(dtype=dtype).cuda()
+        tr_lb = tr_lb.cuda()
+        tr_ub = tr_ub.cuda()
+        pert = tr_lb + (tr_ub - tr_lb) * pert
 
-    # Create candidate points from the perturbations and the mask
-    X_cand = x_center.expand(n_candidates, dim).clone()
-    X_cand = X_cand.cuda()
-    X_cand[mask] = pert[mask]
+        # Create a perturbation mask
+        prob_perturb = min(20.0 / dim, 1.0)
+        mask = (torch.rand(n_candidates, dim, dtype=dtype, device=device)<= prob_perturb)
+        ind = torch.where(mask.sum(dim=1) == 0)[0]
+        mask[ind, torch.randint(0, dim - 1, size=(len(ind),), device=device)] = 1
+        mask = mask.cuda()
 
-    # filter out candidates which are invalid 
-    uX = unnormalize_func(X_cand)
-    valid_samples = []
-    for ux_ in uX:
-        valid_samples.append(is_valid_config(ux_, check_validity_utils))
-    valid_samples = torch.tensor(valid_samples) # bool tensor 
-    X_cand = X_cand[valid_samples]
-    if len(X_cand) == 0: # if left with 0 valid samples, 
-        raise RuntimeError ("No valid X's suggested")
-    # print("time to filter:", time.time() - start) # 0.12 to 0.15 
+        # Create candidate points from the perturbations and the mask
+        X_cand = x_center.expand(n_candidates, dim).clone()
+        X_cand = X_cand.cuda()
+        X_cand[mask] = pert[mask]
 
-    # Sample on the candidate points 
-    thompson_sampling = MaxPosteriorSampling(model=model, replacement=False) 
-    X_next = thompson_sampling(X_cand.cuda(), num_samples=batch_size)
+        # filter out candidates which are invalid 
+        uX = unnormalize_func(X_cand)
+        valid_samples = []
+        for ux_ in uX:
+            valid_samples.append(is_valid_config(ux_, check_validity_utils))
+        valid_samples = torch.tensor(valid_samples) # bool tensor 
+        X_cand = X_cand[valid_samples]
+        if len(X_cand) == 0: # if left with 0 valid samples, 
+            raise RuntimeError ("No valid X's suggested")
+        # print("time to filter:", time.time() - start) # 0.12 to 0.15 
+
+        # Sample on the candidate points 
+        thompson_sampling = MaxPosteriorSampling(model=model, replacement=False) 
+        X_next = thompson_sampling(X_cand.cuda(), num_samples=batch_size)
 
     return X_next
 

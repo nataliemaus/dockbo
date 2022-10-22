@@ -13,6 +13,7 @@ from dockbo.utils.lightdock_torch_utils.lightdock_constants import (
 )
 # from dockbo.utils.lightdock_torch_utils.setup_sim import get_setup_from_file 
 from dockbo.utils.lightdock_torch_utils.scoring.dfire2_driver import DFIRE2Potential
+from dockbo.utils.lightdock_torch_utils.PDBIO import write_pdb_to_file
 from dockbo.utils.lightdock_torch_utils.faster_torch_code import (
     dfire2_torch,
     prep_receptor,
@@ -25,6 +26,7 @@ from dockbo.utils.lightdock_torch_utils.faster_torch_code import (
     get_dfire_score,
     get_numbs,
     get_anumas,
+    compute_ligand_receptor_poses,
 )
 from dockbo.utils.lightdock_torch_utils.feasibility_utils import is_valid_config
 import time 
@@ -44,19 +46,23 @@ class DockBO():
         restraint_file="",
         include_lightchain_in_folded_structure=False,
         wt_seq_light_chain=None,
-        max_n_bo_steps=100,
+        max_n_bo_steps=10_000,
         bsz=1,
         n_init=10,
-        n_epochs=20,
+        n_epochs=50,
         learning_rte=0.01,
         verbose_config_opt=False,
         use_anm=True, 
         anm_rec=DEFAULT_NMODES_REC,
         anm_lig=DEFAULT_NMODES_LIG,
         verbose_timing=False,
-        scoring_func='dfire',
+        scoring_func='dfire2',
         is_receptor='antibody',
+        max_n_tr_restarts=3, 
+        negate_difre2=False,
     ):
+        self.negate_difre2 = negate_difre2
+        self.max_n_tr_restarts = max_n_tr_restarts
         self.is_receptor = is_receptor
         self.scoring_func = scoring_func 
         assert scoring_func in ['dfire', 'dfire2']
@@ -74,6 +80,9 @@ class DockBO():
             'noxt':True, 'noh':True, 'now':True,'verbose_parser':False,
         }
         self.bounding_box = get_bbox_tensor(self.setup) 
+        self.default_antigen_path = None 
+        self.default_receptor = None
+        self.default_ligand = None
         if path_to_default_antigen_pdb is not None:
             # copy antibody to simulation directoy
             os.system(f"cp {path_to_default_antigen_pdb} {self.pdb_dir}")
@@ -85,10 +94,8 @@ class DockBO():
             elif self.is_receptor == 'antibody':
                 self.setup['ligand_pdb'] = self.default_antigen_path 
                 self.default_ligand, _ = prep_ligand(self.setup)
-        else:
-            self.default_antigen_path = None 
-            self.default_receptor = None
-            self.default_ligand = None
+            else:
+                raise RuntimeError("receptor must be antigen or antibody")
 
         if self.scoring_func == 'dfire':
             AdapterClass = DfireAdapter
@@ -158,6 +165,7 @@ class DockBO():
         antibody_aa_seq=None, 
         path_to_antibody_pdb=None, 
         config_x=None,
+        save_pdb_pose_path=None, # file path to save output pdb
     ):
         ''' Inputs: 
                 path_to_antigen_pdb: path to anitgen pdb file, if None will use default antigen from init
@@ -167,6 +175,7 @@ class DockBO():
             Output: 
                 lightdock score 
         '''
+        self.save_pdb_pose_path = save_pdb_pose_path
         start_call = time.time() 
 
         # clamp config_x to be within bounding box 
@@ -251,7 +260,7 @@ class DockBO():
 
         # if we have a path to a new antigen pdb, read it in and prep antigen
         #   otherwise, we assume defaul receptor antigan  
-        new_receptor, new_ligand = False, False 
+        new_receptor, new_ligand = True, True 
         if path_to_antigen_pdb is not None:
             # copy antibody to simulation directoy
             os.system(f"cp {path_to_antigen_pdb} {directory}")
@@ -260,18 +269,18 @@ class DockBO():
             if self.is_receptor == 'antigen':
                 self.setup['receptor_pdb'] = antigen_path
                 self.receptor, _ = prep_receptor(self.setup)
-                new_receptor = True
             elif self.is_receptor == 'antibody':
                 self.setup['ligand_pdb'] = antigen_path
                 self.ligand, _ = prep_ligand(self.setup)
-                new_ligand = True
         else:
             if self.is_receptor == 'antigen':
                 self.setup['receptor_pdb'] = self.default_antigen_path 
                 self.receptor = self.default_receptor  
+                new_receptor = False 
             elif self.is_receptor == 'antibody':
                 self.setup['ligand_pdb'] = self.default_antigen_path 
                 self.ligand = self.default_ligand 
+                new_ligand = False 
         
         # prep antibody ligand 
         if self.is_receptor == 'antigen':
@@ -334,6 +343,47 @@ class DockBO():
             self.best_config = config_x.unsqueeze(0)
         if self.verbose_timing:
             print(f'compute score time: {time.time() - start}')
+        
+        if self.save_pdb_pose_path is not None:
+            best_receptor_pose, best_ligand_pose = compute_ligand_receptor_poses(
+                ld_sol=self.best_config.squeeze(),
+                setup=self.setup,
+                receptor=self.receptor,
+                ligand=self.ligand,
+                receptor_coords=self.receptor_coords,
+                ligand_coords=self.ligand_coords,
+            )
+            end_string = f'_score{best_score:.2f}.pdb'
+            write_pdb_to_file(
+                self.receptor,
+                self.save_pdb_pose_path + end_string,
+                # os.path.join(save_dir + f"/best_pose_score{best_score:.2f}.pdb"),
+                best_receptor_pose.squeeze(),
+            )
+            write_pdb_to_file(
+                self.ligand,
+                self.save_pdb_pose_path + end_string,
+                # os.path.join(save_dir + f"/best_pose_score{best_score:.2f}.pdb"),
+                best_ligand_pose.squeeze()
+            )
+            print('Saving', self.save_pdb_pose_path + end_string, 'from ld sol:', self.best_config.squeeze() )
+
+            # Also save the original pdb for comparison
+            end_string = f'_init_pose.pdb' 
+            self.also_save_initial_pdb_pose = True 
+            if self.also_save_initial_pdb_pose:
+                write_pdb_to_file(
+                    self.receptor,
+                    self.save_pdb_pose_path + end_string,
+                    # os.path.join(save_dir + f"/best_pose_score{best_score:.2f}.pdb"),
+                    self.receptor_coords,
+                )
+                write_pdb_to_file(
+                    self.ligand,
+                    self.save_pdb_pose_path + end_string,
+                    # os.path.join(save_dir + f"/best_pose_score{best_score:.2f}.pdb"),
+                    self.ligand_coords, 
+                )
 
         return best_score 
 
@@ -355,6 +405,8 @@ class DockBO():
                 receptor=self.receptor,
                 ligand=self.ligand,
             )
+            if self.negate_difre2:
+                score = score * -1 
         elif self.scoring_func == 'dfire':
             score = get_dfire_score(
                 x,
@@ -391,5 +443,6 @@ class DockBO():
             self.learning_rte,
             self.verbose_config_opt,
             self.get_lightdock_score,
+            max_n_tr_restarts=self.max_n_tr_restarts,
         )
         return best_config, best_score  

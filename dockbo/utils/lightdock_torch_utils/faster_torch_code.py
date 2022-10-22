@@ -206,9 +206,7 @@ def dfire2_torch(
         ligand,
         receptor_coords,
         ligand_coords,
-    )
-    import pdb 
-    pdb.set_trace() 
+    ) # torch.Size([1, 6625, 3]), torch.Size([1, 594, 3]) 
     potentials_energy = torch.tensor(potentials.energy, device=TH_DEVICE, dtype=TH_DTYPE).reshape(167, 167, 30)
     all_coords = torch.cat((receptor_pose, ligand_pose), dim=-2)
     molecule_length = len(res_index)
