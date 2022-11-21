@@ -30,11 +30,12 @@ class ScoringFunction(ObjectiveFunction):
 
     @staticmethod
     def restraints_satisfied(restraints, interface):
+        # ligand_restraints, set(interface_ligand)
         """Calculates the percentage of satisfied restraints"""
         if not restraints:
             return 0.0
 
-        residues = list(restraints.keys())
+        residues = list(restraints.keys()) 
         total = len(residues)
         satisfied = 0
         for residue in residues:

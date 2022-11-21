@@ -355,7 +355,7 @@ if __name__ == "__main__":
     parser.add_argument('--avg_over', type=int, default=1 ) 
 
     parser.add_argument('--oracle', default='lightdock')  # lightdock, dockbo, or both 
-    parser.add_argument('--lightdock_scoring_func', default='')  # "" --> fast dfire!, or do dfire, or dfire2
+    parser.add_argument('--lightdock_scoring_func', default='dfire2')  # "" --> fast dfire!, or do dfire, or dfire2
     parser.add_argument('--remove_temp_dir', type=bool, default=False) # remove swarm files, etc. made by lightdock
     parser.add_argument('--receptor_is', default='antibody')  # receptor = antibody, ligand = antigen!  
     parser.add_argument('--n_runs', type=int, default=100 )
@@ -363,8 +363,8 @@ if __name__ == "__main__":
 
     # only things to change: 
     parser.add_argument('--bighat_version', default='v2')  # v1 or v2 (which set of antibody/antigen pairs to use)
-    parser.add_argument('--restrain_antibody', type=bool, default=True)
-    parser.add_argument('--restrain_antigen', type=bool, default=True) 
+    parser.add_argument('--restrain_antibody', type=bool, default=False)
+    parser.add_argument('--restrain_antigen', type=bool, default=False) 
     # parser.add_argument('--lightdock_temp_dir', default='dockbo/example/lightdock_abrestrained') 
     parser.add_argument('--antigen_idx', type=int, default=0 ) # for this antigen, do all antibodies 
     parser.add_argument('--antibody_idx', type=int, default=None ) # for this antigen, do all antibodies 
@@ -380,13 +380,13 @@ if __name__ == "__main__":
     elif args_dict['restrain_antigen']:
         args_dict['lightdock_temp_dir'] = 'dockbo/example/lightdock_agrestrained'
     else:
-        args_dict['lightdock_temp_dir'] = 'dockbo/example/lightdock_norestraints'
+        args_dict['lightdock_temp_dir'] = f"dockbo/example/lightdock_norestraints_sfunc{args_dict['lightdock_scoring_func']}"
     
     if args_dict['restraintsv3']:
         args_dict['lightdock_temp_dir'] = args_dict['lightdock_temp_dir'] + 'v3'
 
     print(args_dict['lightdock_temp_dir'])
-    # tmux attach -t bighat , bighat2 
+    # tmux attach -t bighat , bighat2  
     if args_dict['bighat']:
         bighat(args_dict)
     else:
@@ -397,7 +397,9 @@ if __name__ == "__main__":
 # elif args_dict['bighat_version'] == 'v2':
 #   bighatpdbs = ['7p16', '6lfo', '7s7r', '5j57', '6knm']
 # conda activate og_lolbo_mols
-# python3 dockbo_lightdock_correlation.py --lightdock_scoring_func dfire2 --bighat_version v2 --antigen_idx 4 --antibody_idx 4
+# python3 dockbo_lightdock_correlation.py --bighat_version v2 --antigen_idx 4 --antibody_idx 0
+
+# python3 dockbo_lightdock_correlation.py --bighat_version v1 --antigen_idx 5 --antibody_idx 5
 
 # done ag 0, 1 w/ all abs 
 # TODO other ags with all abs ... (meh)

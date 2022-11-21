@@ -12,16 +12,22 @@ def collect_lightdock_best_pdbs(
     antigen_files = glob.glob(file_prefix + '*') 
     for file in antigen_files:
         antigen_id = file[-4:]
-        # print(antigen_id)
-        ab_files = glob.glob(file + "/*")
-        for ab_file in ab_files:
-            antibody_files = glob.glob(ab_file + "/*_antibody.pdb")
+        idxz = 0
+        ab_files = glob.glob(file + "/*") 
+        for ab_file in ab_files: 
+            if 'nanonet' in file_prefix:
+                antibody_id = file[-16:-12]
+                print('nanonet ab id,', antibody_id)
+                antibody_files = ['irrelevant']
+            else:
+                antibody_files = glob.glob(ab_file + "/*_antibody.pdb")
             if len(antibody_files) == 0:
                 antibody_files = glob.glob(ab_file + "/*_A.pdb")
             if len(antibody_files) == 0:
                 pass # if still fails, must be empty dir due to failed process or newly starting process
             else:
-                antibody_id = antibody_files[0].split("_")[-2][-4:]
+                if 'nanonet' not in file_prefix:
+                    antibody_id = antibody_files[0].split("_")[-2][-4:]
                 results_files = glob.glob(ab_file + "/*/RESULTS.csv")
                 assert len(results_files) <= 1
                 if len(results_files) == 0:
@@ -29,6 +35,9 @@ def collect_lightdock_best_pdbs(
                 else:
                     results = pd.read_csv(results_files[0])
                     write_dir = save_dir + f"ag{antigen_id}_ab{antibody_id}"
+                    if 'nanonet' in file_prefix:
+                        write_dir = write_dir + f"_{idxz}" 
+                        idxz += 1 
                     if not os.path.exists(write_dir):
                         os.mkdir(write_dir)
                     for i in range(k):
@@ -42,7 +51,7 @@ def collect_lightdock_best_pdbs(
 
 if __name__ == "__main__": 
     collect_lightdock_best_pdbs(
-        file_prefix='lightdock_bothrestrainedv3_',
+        file_prefix='lightdock_bothrestrained_nanonet_nruns100_ab',
         k=20,
-        save_dir='bothrestrainedv3_lightdock_poses/'
+        save_dir='bothrestrained_nanonet_nruns100_lightdock_poses_allpairs/'
     )

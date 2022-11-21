@@ -14,7 +14,7 @@ from dockbo.utils.lightdock_torch_utils.lightdock_constants import DEFAULT_CONTA
 atom_type_number = 167
 bin_number = 30
 
-DFIRE2_ATOM_TYPES = {
+DFIRE2_ATOM_TYPES = { # 167 
     "GLY CA": 40,
     "HIS C": 45,
     "VAL O": 137,

@@ -89,21 +89,23 @@ def read_atom_line(line, line_type="", atoms_to_ignore=[], residues_to_ignore=[]
             element,
         )
     else:
-        return HetAtom(
-            atom_number,
-            atom_name,
-            atom_alternative,
-            chain_id,
-            residue_name,
-            residue_number,
-            residue_insertion,
-            x,
-            y,
-            z,
-            occupancy,
-            b_factor,
-            element,
-        )
+        # !!! NATALIE CHANGE, don't allow any HET Atoms 
+        assert 0 
+        # return HetAtom(
+        #     atom_number,
+        #     atom_name,
+        #     atom_alternative,
+        #     chain_id,
+        #     residue_name,
+        #     residue_number,
+        #     residue_insertion,
+        #     x,
+        #     y,
+        #     z,
+        #     occupancy,
+        #     b_factor,
+        #     element,
+        # )
 
 
 def parse_complex_from_file(
@@ -142,11 +144,12 @@ def parse_complex_from_file(
                         line, line_type, atoms_to_ignore, residues_to_ignore
                     )
                     atoms.append(atom)
-                except PDBParsingWarning as warning:
+                except:  # PDBParsingWarning as warning:
+                    # NATALIE part 2: except all errors (ie HET ATOMS)
                     # Natalie: stop print statements: 
-                    verbose = False
-                    if verbose:
-                        print(warning)
+                    # verbose = False
+                    # if verbose:
+                    #     print(warning) 
                     continue
 
                 if last_chain_id != atom.chain_id:

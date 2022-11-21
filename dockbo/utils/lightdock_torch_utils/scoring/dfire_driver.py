@@ -9,7 +9,7 @@ import os
 from dockbo.utils.lightdock_torch_utils.structure.model import DockingModel
 from dockbo.utils.lightdock_torch_utils.scoring.functions import ModelAdapter, ScoringFunction
 # from lightdock_env.lightdock.scoring.dfire.cython.cdfire import calculate_dfire
-from dockbo.utils.lightdock_torch_utils.faster_torch_code import calculate_dfire_torch
+# from dockbo.utils.lightdock_torch_utils.faster_torch_code import calculate_dfire_torch
 from dockbo.utils.lightdock_torch_utils.lightdock_constants import DEFAULT_CONTACT_RESTRAINTS_CUTOFF
 import torch 
 
@@ -465,24 +465,27 @@ class DFIRE(ScoringFunction):
         ligand_coordinates,
         rec_numas,
         lig_numbs,
-    ):
-        energy = calculate_dfire_torch(
+        receptor_restraints,
+        ligand_restraints,
+    ):  
+        from dockbo.utils.lightdock_torch_utils.faster_torch_code import calculate_dfire_torch
+        energy, interface_receptor, interface_ligand = calculate_dfire_torch(
             rec_numas,
             receptor_coordinates,
             lig_numbs,
             ligand_coordinates, 
             self.potential.dfire_dist_to_bins,
-            self.potential.dfire_energy,
+            self.potential.dfire_energy
         )
 
-        perc_receptor_restraints, perc_ligand_restraints = 0.0, 0.0
+        # XXX perc_receptor_restraints, perc_ligand_restraints = 0.0, 0.0
 
-        # perc_receptor_restraints = ScoringFunction.restraints_satisfied(
-        #     receptor.restraints, interface_receptor
-        # )
-        # perc_ligand_restraints = ScoringFunction.restraints_satisfied(
-        #     ligand.restraints, interface_ligand
-        # )
+        perc_receptor_restraints = ScoringFunction.restraints_satisfied(
+            receptor_restraints, interface_receptor
+        )
+        perc_ligand_restraints = ScoringFunction.restraints_satisfied(
+            ligand_restraints, interface_ligand
+        )
 
         return (
             energy + perc_receptor_restraints * energy + perc_ligand_restraints * energy

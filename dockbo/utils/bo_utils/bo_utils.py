@@ -7,7 +7,7 @@ from torch.quasirandom import SobolEngine
 from botorch.generation.sampling import MaxPosteriorSampling
 import gpytorch 
 from gpytorch.mlls import PredictiveLogLikelihood
-from .ppgpr import GPModel 
+from .ppgpr import GPModelDKL
 from torch.utils.data import TensorDataset, DataLoader
 from botorch.acquisition import qExpectedImprovement
 from botorch.optim import optimize_acqf
@@ -65,6 +65,10 @@ def generate_batch(
     batch_size=1,
     dtype=torch.float32,
     device=torch.device('cuda'),
+    lig_rest_model=None,
+    rec_rest_model=None,
+    min_lig_rest_value=0.2,
+    min_rec_rest_value=0.05,
 ):
     assert torch.all(torch.isfinite(Y))
     n_candidates = min(5000, max(2000, 200 * X.shape[-1]))
@@ -110,6 +114,39 @@ def generate_batch(
             raise RuntimeError ("No valid X's suggested")
         # print("time to filter:", time.time() - start) # 0.12 to 0.15 
 
+        # ligand restraint model 
+        if lig_rest_model is not None:
+            lig_rest_posterior = lig_rest_model(X_cand)
+            # constraint_posterior = constr_model.posterior(X, observation_noise=observation_noise)
+            # constr_samples = constraint_posterior.rsample(sample_shape=torch.Size([num_samples]))
+            lig_rest_preds = lig_rest_posterior.sample()
+
+            valid_samples = lig_rest_preds >= min_lig_rest_value
+            valid_X_cand = X_cand[valid_samples]
+            if len(valid_X_cand) == 0:
+                # pick point with minimum violation
+                valid_X_cand = X_cand[lig_rest_preds.argmax()]
+            X_cand = valid_X_cand
+            if len(X_cand.shape) == 1:
+                X_cand = X_cand.unsqueeze(0)
+        
+        # receptor restraint model 
+        if rec_rest_model is not None:
+            try:
+                rec_rest_posterior = rec_rest_model(X_cand)
+            except:
+                import pdb 
+                pdb.set_trace() 
+            rec_rest_preds = rec_rest_posterior.sample()
+            valid_samples = rec_rest_preds >= min_rec_rest_value
+            valid_X_cand = X_cand[valid_samples]
+            if len(valid_X_cand) == 0:
+                # pick point with minimum violation
+                valid_X_cand = X_cand[rec_rest_preds.argmax()]
+            X_cand = valid_X_cand
+            if len(X_cand.shape) == 1:
+                X_cand = X_cand.unsqueeze(0)
+
         # Sample on the candidate points 
         thompson_sampling = MaxPosteriorSampling(model=model, replacement=False) 
         X_next = thompson_sampling(X_cand.cuda(), num_samples=batch_size)
@@ -121,7 +158,7 @@ def initialize_surrogate_model(train_x ):
     likelihood = gpytorch.likelihoods.GaussianLikelihood().cuda() 
     n_init_points = min(1024, len(train_x))
     init_train_x = train_x[0:n_init_points] 
-    model = GPModel(init_train_x.cuda(), likelihood=likelihood ).cuda()
+    model = GPModelDKL(init_train_x.cuda(), likelihood=likelihood, hidden_dims=(27,16) ).cuda()
     mll = PredictiveLogLikelihood(model.likelihood, model, num_data=init_train_x.size(-2))
     model = model.cuda()
 
@@ -135,6 +172,32 @@ def get_surr_model(
     learning_rte
 ):
     model, mll = initialize_surrogate_model(train_x )
+    model = model.train() 
+    optimizer = torch.optim.Adam([{'params': model.parameters(), 'lr': learning_rte} ], lr=learning_rte)
+    train_bsz = min(len(train_y),128)
+    train_dataset = TensorDataset(train_x.cuda(), train_y.cuda()) 
+    train_loader = DataLoader(train_dataset, batch_size=train_bsz, shuffle=True)
+    for _ in range(n_epochs):
+        for (inputs, scores) in train_loader:
+            optimizer.zero_grad()
+            output = model(inputs.cuda())
+            loss = -mll(output, scores.squeeze().cuda())
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
+    model = model.eval()
+
+    return model, mll 
+
+
+def update_surr_model(
+    model,
+    mll,
+    train_x,
+    train_y,
+    n_epochs,
+    learning_rte
+):
     model = model.train() 
     optimizer = torch.optim.Adam([{'params': model.parameters(), 'lr': learning_rte} ], lr=learning_rte)
     train_bsz = min(len(train_y),128)
