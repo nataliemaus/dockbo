@@ -2,15 +2,14 @@ import torch
 import sys 
 sys.path.append("../")
 import os 
-from scipy.spatial import Delaunay
-from scipy.spatial import ConvexHull, convex_hull_plot_2d
+# from scipy.spatial import Delaunay
+from scipy.spatial import ConvexHull # , convex_hull_plot_2d
 from pathlib import Path
-from pytorch3d import transforms
+# from pytorch3d import transforms 
+from utils.quaternion_utils import quaternion_invert, quaternion_apply
 EPS = 1e-10 
 import glob 
 os.environ["WANDB_SILENT"] = "true" 
-# What data can I get... ??? 
-# load in teh ab and ag pdb 
 from dockbo.utils.lightdock_torch_utils.lightdock_constants import (
     DEFAULT_LIST_EXTENSION,
     TH_DEVICE,
@@ -18,7 +17,7 @@ from dockbo.utils.lightdock_torch_utils.lightdock_constants import (
 )
 import wandb 
 from dockbo.utils.lightdock_torch_utils.structure.complex import Complex 
-from dockbo.utils.lightdock_torch_utils.PDBIO import write_pdb_to_file
+# from dockbo.utils.lightdock_torch_utils.PDBIO import write_pdb_to_file
 import numpy as np 
 # from dockbo.utils.lightdock_torch_utils.setup_sim import read_input_structure
 import copy 
@@ -187,8 +186,8 @@ def get_data(
     init_R = init_R / torch.linalg.vector_norm(init_R) 
     ligand_coords = data_dict['ligand_coords'] - data_dict['ab_origin_translation'].cuda() 
     receptor_coords = data_dict['receptor_coords'] - data_dict['ag_origin_translation'].cuda() 
-    ligand_coords = transforms.quaternion_apply(init_R, ligand_coords) 
-    receptor_coords = transforms.quaternion_apply(init_R, receptor_coords) 
+    ligand_coords = quaternion_apply(init_R, ligand_coords) 
+    receptor_coords = quaternion_apply(init_R, receptor_coords) 
     ligand_coords = ligand_coords + data_dict['ab_origin_translation'].cuda() 
     receptor_coords = receptor_coords + data_dict['ag_origin_translation'].cuda() 
 
@@ -204,8 +203,8 @@ def get_data(
     # Now randomly rotate the ligand (ab) away from starting/currect position 
     ab_rotation_label = torch.randn(4,) 
     ab_rotation_label = ab_rotation_label / torch.linalg.vector_norm(ab_rotation_label) 
-    inverse_rotation = transforms.quaternion_invert(ab_rotation_label) 
-    ligand_coords = transforms.quaternion_apply(inverse_rotation, ligand_coords) 
+    inverse_rotation = quaternion_invert(ab_rotation_label) 
+    ligand_coords = quaternion_apply(inverse_rotation, ligand_coords) 
 
     data_dict['label'] = torch.cat((ab_translation_label.cuda(), ab_rotation_label.cuda())).unsqueeze(0)
 
@@ -234,7 +233,7 @@ def get_new_pose(
     if rotation is None:
         new_pose = current_coords + translation
     else:
-        new_pose = transforms.quaternion_apply(rotation.cuda(), current_coords.cuda()) + translation.cuda() 
+        new_pose = quaternion_apply(rotation.cuda(), current_coords.cuda()) + translation.cuda() 
     return new_pose 
 
 
