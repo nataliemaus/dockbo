@@ -107,7 +107,7 @@ class DockBO():
             # prep antigen as receptor! 
             if self.is_receptor == 'antigen':
                 self.setup['receptor_pdb'] = self.default_antigen_path 
-                self.default_receptor, _ = prep_receptor(self.setup)
+                self.default_receptor, _ = prep_receptor(self.setup) 
                 if path_to_default_antigen_restraints is not None:
                     parsed_restraints = parse_restraints_file(path_to_default_antigen_restraints)
                     self.default_receptor_restraints = parsed_restraints["receptor"]["active"]

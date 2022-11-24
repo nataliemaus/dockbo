@@ -269,6 +269,7 @@ class Net(nn.Module):
         pos_dropout = 0.1,
         max_len = 5_000,
         enc_dropout = 0.1,
+        extra_dropout=0.1,
     ):
         super().__init__()
 
@@ -317,6 +318,7 @@ class Net(nn.Module):
             num_layers=num_layers,
         )
 
+        self.dropout = nn.Dropout(p=extra_dropout)
         self.fc1 = nn.Linear(embedding_dim*3,embedding_dim*3//2 )
         self.fc2 = nn.Linear(embedding_dim*3//2,embedding_dim*3//4 )
         self.fc3 = nn.Linear(embedding_dim*3//4, 7 )
@@ -349,10 +351,11 @@ class Net(nn.Module):
         output = torch.cat((ab, ag, ab_ag), -1) # torch.Size([1, 192])  = bsz x embed_dim*3 
         output = self.fc1(output)
         output = torch.nn.functional.relu(output)
+        output = self.dropout(output)
         output = self.fc2(output)
         output = torch.nn.functional.relu(output) 
+        output = self.dropout(output)
         output = self.fc3(output)  # torch.Size([1, 7]) = bsz x 7 
-        
         # output[:,3:] = torch.nn.functional.normalize(output[:,3:].clone(), p=2.0, dim=1, eps=1e-12, out=None)
 
         # normalize rotation 
@@ -475,6 +478,7 @@ def train(args):
         pos_dropout=args.pos_dropout, # 0.1,
         max_len=args.max_len,  #  1_000,
         enc_dropout=args.enc_dropout, # 0.1,
+        extra_dropout=args.extra_dropout,
     ) 
     model = model.cuda() 
     model = model.train() 
@@ -593,14 +597,17 @@ if __name__ == "__main__":
     parser.add_argument('--nhead', type=int, default=8 )   
     parser.add_argument('--num_layers', type=int, default=6 )   
     parser.add_argument('--embedding_dim', type=int, default=128 )  
-    parser.add_argument('--pos_dropout', type=float, default=0.01 )  
-    parser.add_argument('--enc_dropout', type=float, default=0.01 ) 
+    parser.add_argument('--pos_dropout', type=float, default=0.1 )  
+    parser.add_argument('--enc_dropout', type=float, default=0.1 ) 
+    parser.add_argument('--extra_dropout', type=float, default=0.1 ) 
     parser.add_argument('--max_len', type=int, default=1_000 ) 
     parser.add_argument('--bsz', type=int, default=128 ) 
     parser.add_argument('--debug', type=bool, default=False ) 
     parser.add_argument('--wandb_entity', default="nmaus" )
     parser.add_argument('--wandb_project_name', default="train-ab-binding-model" )  
     args = parser.parse_args() 
+
+    # CUDA_VISIBLE_DEVICES=1 python3 pose_prediction_model.py --lr 0.00005 --dim_feedforward 4096 --bsz 256 --num_layers 32 --nhead 8
 
     train(args) 
 

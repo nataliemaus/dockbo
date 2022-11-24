@@ -212,7 +212,7 @@ def compute_ligand_receptor_poses(
     if ld_sol == "default": # default pose 
         return receptor_coords, ligand_coords 
     try:
-        ld_sol = ld_sol.squeeze()
+        ld_sol = ld_sol.squeeze() 
     except:
         pass # ld_sol is a list or other type, cna't squeeze 
     ## Unpack solution into matrices 
