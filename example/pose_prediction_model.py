@@ -10,11 +10,12 @@ from utils.quaternion_utils import quaternion_invert, quaternion_apply
 EPS = 1e-10 
 import glob 
 os.environ["WANDB_SILENT"] = "true" 
+import argparse 
 from dockbo.utils.lightdock_torch_utils.lightdock_constants import (
     DEFAULT_LIST_EXTENSION,
     TH_DEVICE,
     TH_DTYPE,
-)
+) 
 import wandb 
 from dockbo.utils.lightdock_torch_utils.structure.complex import Complex 
 # from dockbo.utils.lightdock_torch_utils.PDBIO import write_pdb_to_file
@@ -480,9 +481,14 @@ def train(args):
         enc_dropout=args.enc_dropout, # 0.1,
         extra_dropout=args.extra_dropout,
     ) 
+    if args_dict['load_ckpt_wandb_name']: 
+        path_to_state_dict = 'saved_models/' + args_dict['load_ckpt_wandb_name'] + '_model_state.pkl'  
+        state_dict = torch.load(path_to_state_dict) # load state dict 
+        model.load_state_dict(state_dict, strict=True) 
+
     model = model.cuda() 
     model = model.train() 
-    optimizer = torch.optim.Adam([
+    optimizer = torch.optim.Adam([ 
         {'params': model.parameters()}, ], 
         lr=args.lr
     ) 
@@ -587,11 +593,9 @@ def train(args):
 
 
 if __name__ == "__main__":
-    import argparse 
     parser = argparse.ArgumentParser() 
     parser.add_argument('--lr', type=float, default=0.00001)  
     parser.add_argument('--compute_val_freq', type=int, default=5 ) 
-    parser.add_argument('--load_ckpt_wandb_name', default="" ) 
     parser.add_argument('--max_epochs', type=int, default=1_000_000_000 ) 
     parser.add_argument('--dim_feedforward', type=int, default=1024 )   
     parser.add_argument('--nhead', type=int, default=8 )   
@@ -605,6 +609,7 @@ if __name__ == "__main__":
     parser.add_argument('--debug', type=bool, default=False ) 
     parser.add_argument('--wandb_entity', default="nmaus" )
     parser.add_argument('--wandb_project_name', default="train-ab-binding-model" )  
+    parser.add_argument('--load_ckpt_wandb_name', default="" ) 
     args = parser.parse_args() 
 
     # CUDA_VISIBLE_DEVICES=1 python3 pose_prediction_model.py --lr 0.00005 --dim_feedforward 4096 --bsz 256 --num_layers 32 --nhead 8
