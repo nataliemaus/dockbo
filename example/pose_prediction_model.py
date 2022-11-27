@@ -2,6 +2,7 @@ import torch
 import sys 
 sys.path.append("../")
 import os 
+import random 
 # from scipy.spatial import Delaunay
 from scipy.spatial import ConvexHull # , convex_hull_plot_2d
 from pathlib import Path
@@ -9,6 +10,7 @@ from pathlib import Path
 from utils.quaternion_utils import quaternion_invert, quaternion_apply
 EPS = 1e-10 
 import glob 
+import wandb 
 os.environ["WANDB_SILENT"] = "true" 
 import argparse 
 from dockbo.utils.lightdock_torch_utils.lightdock_constants import (
@@ -16,7 +18,6 @@ from dockbo.utils.lightdock_torch_utils.lightdock_constants import (
     TH_DEVICE,
     TH_DTYPE,
 ) 
-import wandb 
 from dockbo.utils.lightdock_torch_utils.structure.complex import Complex 
 # from dockbo.utils.lightdock_torch_utils.PDBIO import write_pdb_to_file
 import numpy as np 
@@ -388,15 +389,44 @@ class Net(nn.Module):
 def get_convex_hull(
     ligand_coords, 
     receptor_coords,
+    args,
 ):
     # include only ab and ag atoms in convex hull 
-    ab_convex_hull = ConvexHull(ligand_coords.detach().cpu().numpy()).vertices  
+    ab_convex_hull = ConvexHull(ligand_coords.detach().cpu().numpy()).vertices
     ag_convex_hull = ConvexHull(receptor_coords.detach().cpu().numpy()).vertices  
+
+    # Extend ab convex hull to at least min_num_ab_atoms atoms 
+    ab_convex_hull = ab_convex_hull.tolist() 
+    num_ab_atoms = ligand_coords.shape[0]
+    num_could_add = num_ab_atoms - len(ab_convex_hull)
+    num_should_add = args.min_num_ab_atoms - len(ab_convex_hull)
+    num_add = min(num_should_add, num_could_add)  
+    num_add = max(num_add, 0) 
+    for _ in range(num_add): 
+        add = random.randint(0,num_ab_atoms - 1) 
+        while add in ab_convex_hull:
+            add = random.randint(0,num_ab_atoms - 1) 
+        ab_convex_hull.append(add)
+    ab_convex_hull = np.array(ab_convex_hull)
+
+    # Extend ab convex hull to at least min_num_ag_atoms atoms 
+    ag_convex_hull = ag_convex_hull.tolist() 
+    num_ag_atoms = receptor_coords.shape[0]
+    num_could_add = num_ag_atoms - len(ag_convex_hull)
+    num_should_add = args.min_num_ag_atoms - len(ag_convex_hull)
+    num_add = min(num_should_add, num_could_add)  
+    num_add = max(num_add, 0) 
+    for _ in range(num_add): 
+        add = random.randint(0,num_ag_atoms - 1) 
+        while add in ag_convex_hull:
+            add = random.randint(0,num_ag_atoms - 1) 
+        ag_convex_hull.append(add)
+    ag_convex_hull = np.array(ag_convex_hull)
 
     return ab_convex_hull, ag_convex_hull 
 
 
-def prep_data_dict(antibody_pdb_file, antigen_pdb_file):
+def prep_data_dict(antibody_pdb_file, antigen_pdb_file, args):
     ab_structure, ab_origin_translation = prep_structure(antibody_pdb_file, move_to_origin=True)
     ag_structure, ag_origin_translation = prep_structure(antigen_pdb_file, move_to_origin=True) 
     adapter = get_adapter(
@@ -415,9 +445,12 @@ def prep_data_dict(antibody_pdb_file, antigen_pdb_file):
             ag_atom_ids.append(atom.residue_name + " " + atom.name)
     ab_atom_idxs = torch.tensor([DFIRE2_ATOM_TYPES[atom_id] for atom_id in ab_atom_ids]).float().unsqueeze(-1)
     ag_atom_idxs = torch.tensor([DFIRE2_ATOM_TYPES[atom_id] for atom_id in ag_atom_ids]).float().unsqueeze(-1)
-    ab_convex_hull, ag_convex_hull = get_convex_hull(ligand_coords, receptor_coords) 
+    ab_convex_hull, ag_convex_hull = get_convex_hull(
+        ligand_coords, 
+        receptor_coords,
+        args,
+    )
     data_dict = {} 
-
     data_dict['ab_convex_hull'] = ab_convex_hull
     data_dict['ag_convex_hull'] = ag_convex_hull
     data_dict['receptor_coords'] = receptor_coords
@@ -439,13 +472,12 @@ def prep_data(args):
     for antibody_pdb_file in all_ab_files: 
         pdb_id = antibody_pdb_file.split("/")[-1][0:-7]
         antigen_pdb_file = f"../parsed_chothia_pdbs/{pdb_id}_ag.pdb"
-        data_dict = prep_data_dict(antibody_pdb_file, antigen_pdb_file)
+        data_dict = prep_data_dict(antibody_pdb_file, antigen_pdb_file, args)
         pdb_id_to_data[pdb_id] = data_dict 
     return pdb_id_to_data
 
 
 def start_wandb(args_dict):
-    import wandb 
     tracker = wandb.init(
         entity=args_dict['wandb_entity'], 
         project=args_dict['wandb_project_name'],
@@ -535,7 +567,6 @@ def train(args):
                 'rot_normed_mse':rot_normed_mse.item(),
                 'loss':loss.item(),
             }) 
-
         avg_train_loss = np.array(losses).mean()
         avg_train_mse = np.array(mses).mean()
         avg_train_cos_sim = np.array(cos_sims).mean() 
@@ -547,7 +578,6 @@ def train(args):
             'avg_train_cos_sim':avg_train_cos_sim,
             'avg_train_rot_normed_mse':avg_train_rot_normed_mse,
         })
-    
         if epoch % args.compute_val_freq == 0: 
             gc.collect() 
             model = model.eval()  
@@ -586,7 +616,8 @@ def train(args):
             if avg_val_loss < lowest_loss: 
                 lowest_loss = avg_val_loss 
                 tracker.log({'lowest_avg_val_loss': lowest_loss, 'saved_model_at_epoch': epoch+1 }) 
-                torch.save(model.state_dict(), model_save_path) 
+                if not args.debug:
+                    torch.save(model.state_dict(), model_save_path) 
             model = model.train() # back in train mode 
 
     tracker.finish() 
@@ -606,12 +637,13 @@ if __name__ == "__main__":
     parser.add_argument('--extra_dropout', type=float, default=0.1 ) 
     parser.add_argument('--max_len', type=int, default=1_000 ) 
     parser.add_argument('--bsz', type=int, default=128 ) 
+    parser.add_argument('--min_num_ab_atoms', type=int, default=100 ) 
+    parser.add_argument('--min_num_ag_atoms', type=int, default=200 ) 
     parser.add_argument('--debug', type=bool, default=False ) 
     parser.add_argument('--wandb_entity', default="nmaus" )
     parser.add_argument('--wandb_project_name', default="train-ab-binding-model" )  
     parser.add_argument('--load_ckpt_wandb_name', default="" ) 
     args = parser.parse_args() 
-
     # CUDA_VISIBLE_DEVICES=1 python3 pose_prediction_model.py --lr 0.00005 --dim_feedforward 4096 --bsz 256 --num_layers 32 --nhead 8
 
     train(args) 
