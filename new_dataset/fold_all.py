@@ -1,10 +1,10 @@
-
-# import uuid 
-# import os 
+import sys 
+sys.path.append("../")
 from dockbo.utils.fold_utils.fold_utils import remove_hetero_atoms_and_hydrogens
 from igfold import IgFoldRunner, init_pyrosetta 
 import pandas as pd 
 import argparse 
+import os 
 
 def fold_protein(
     igfold_runner,
@@ -12,17 +12,23 @@ def fold_protein(
     save_path, 
     light_chain_seq=None,
 ):
-    sequences = {"H":heavy_chain_seq }
-    if light_chain_seq is not None:
-        sequences["L"] = light_chain_seq # stays constant
-    igfold_runner.fold(
-        save_path, # Output PDB file 
-        sequences=sequences, # Antibody sequences
-        do_refine=True, # Refine the antibody structure with PyRosetta
-        do_renum=True, # Renumber predicted antibody structure (Chothia) :) ! 
-    ) 
-    pdb_path = remove_hetero_atoms_and_hydrogens(pdb_path)
-
+    # only save new pdbs if path does not already exist 
+    if not os.path.exists(save_path):
+        sequences = {"H":heavy_chain_seq }
+        if light_chain_seq is not None: 
+            sequences["L"] = light_chain_seq # stays constant
+        out = igfold_runner.fold(
+            save_path, # Output PDB file 
+            sequences=sequences, # Antibody sequences
+            do_refine=True,#  True, # Refine the antibody structure with PyRosetta
+            do_renum=False, # True, # Renumber predicted antibody structure (Chothia) :) ! 
+        ) 
+        ## do_renum=True causes bug :( 
+        remove_hetero_atoms_and_hydrogens(save_path)
+        # Debug example 2: 
+        # Time fold 27.422064065933228
+        # Time save hetero atoms 0.05717658996582031
+        return out 
 
 def load_seqs():
     df = pd.read_csv('new_100k_seqs.csv')
@@ -32,36 +38,47 @@ def load_seqs():
     return l_chain, h_chains, seq_ids 
     
 
+def load_debug():
+    hc1 = "TVSSTVYNPTVSSTVSSTVTVSSTVSSTVSSTVSSTVSSDKAKGYTTETVSSTVSSSSTVSVKGRVTVSSTVSSTVSTVSSTVSSTVKNQFSLTVSSTVSSTVSSYWGQGSTVRTVSSSTVTMLVDTSTVSSTVSSTVSSTVLSSVTATVSSTVAVYYCARTVSSTVSSTVSSTVEGHTVAPFDLSSTVSSTVADTATVSS"
+    hc2 = "TVSSTVSSTVSSSTVSSTVSTVSSDKSTVSAKGYTTETVSSTVSSTVSSTVYNPTKGRVTVSSTVSSTVSKGRVTVSSTSTVSSTVSVVSSTVSSTVTMLVDTSTVSSTVSTVKSTVSSNQFSLSTVSSTVSSTVSSTVSSYWGQGSSTVSTVRTVSSTVSSSSVTVSSSSVTVLSSVTATVSSVSSTTVAAPFDLSSTVADCARTVSSTTAVYYVSSTVSSTVEGHTVTVSS"
+    hc3 = "TVSSTVSSTVSTVSSTVSVKSSTVSSTVSSGRVTVTVGRVKTVTMLVDTSTVSSTVSSTVSSTVGQGVKSTVRTVSSVKTAPFDLSSTVSSVKTVADTAVYTVEGHTVTVSS"
+    l_chain = "TVSSTVTMLVDTSTVSSTVSSTVSSTVKNQFSLVTVSS"
+    h_chains = [hc1, hc2, hc3]
+    seq_ids = [0,1,2] 
+    return l_chain, h_chains, seq_ids 
+
+
 def fold(args):
     init_pyrosetta()
     igfold_runner = IgFoldRunner()
-    l_chain, h_chains, seq_ids  = load_seqs() 
+    if args.debug:
+        l_chain, h_chains, seq_ids  = load_debug() 
+        prefix = "debug"
+    else:
+        l_chain, h_chains, seq_ids  = load_seqs() 
+        prefix = "seq"
+
+    if args.min_idx is None:
+        args.min_idx = 0
+    if args.max_idx is None:
+        args.max_idx = len(h_chains)
+
     h_chains = h_chains[args.min_idx: args.max_idx]
     seq_ids = seq_ids[args.min_idx: args.max_idx]
     for ix, h_chain in enumerate(h_chains):
-        seq_id = seq_ids[ix] 
         fold_protein( 
             igfold_runner=igfold_runner,
             heavy_chain_seq=h_chain, 
-            save_path=f"folded_pdbs/seq{seq_id}.pdb", 
+            save_path=f"folded_pdbs/{prefix}{seq_ids[ix]}.pdb", 
             light_chain_seq=l_chain,
         )
 
-
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser() 
-    parser.add_argument('--work_dir', default='/home/nmaus/' ) 
-    # parser.add_argument('--wandb_entity', default="nmaus" )
-    # parser.add_argument('--wandb_project_name', default="adversarial-bo" )  
-    parser.add_argument('--min_idx', type=int, default=0 ) 
-    parser.add_argument('--max_idx', type=int, default=10 ) 
+    parser.add_argument('--work_dir', default='/home/nmaus/' )  
+    parser.add_argument('--min_idx', type=int, default=None ) 
+    parser.add_argument('--max_idx', type=int, default=None ) 
     parser.add_argument('--debug', type=bool, default=False)  
     args = parser.parse_args() 
-    if args.debug:
-        args.min_idx = 0
-        args.max_idx = 1 
-
     fold(args) 
-    # python3 fold_all.py --min_idx 0 --max_idx 10
+    # python3 fold_all.py --debug True --min_idx 1 --max_idx 2
