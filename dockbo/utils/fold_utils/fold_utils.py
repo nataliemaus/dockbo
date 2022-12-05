@@ -1,5 +1,6 @@
 from Bio.PDB import PDBParser, PDBIO, Select
 import os 
+from dockbo.utils.fold_utils.fold_utils import remove_hetero_atoms_and_hydrogens
 
 class NonHetSelect(Select):
     def accept_residue(self, residue):

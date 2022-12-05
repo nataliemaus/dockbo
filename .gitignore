@@ -43,5 +43,8 @@ example/restrained_v1_fastdfire/
 example/restrained_v1_fastdfire/*
 example/restrained_v2_fastdfire/
 example/restrained_v2_fastdfire/*
+saved_structures/
+saved_structures/* 
+
 
 
