@@ -33,8 +33,8 @@ def load_seqs():
     # RANIBIZUMAB 
     # http://opig.stats.ox.ac.uk/webapps/newsabdab/therasabdab/therasummary/?INN=Ranibizumab
     df = pd.read_csv('rani_display_with_sequences.csv')
-    seq_ids = df['Unnamed: 0'].squeeze() # (96846,)
-    h_chains = df['full_sequence'] # (96846,) 
+    seq_ids = df['Unnamed: 0'].squeeze().values # (96846,)
+    h_chains = df['full_sequence'].values # (96846,) 
     l_chain = "DIQLTQSPSSLSASVGDRVTITCSASQDISNYLNWYQQKPGKAPKVLIYFTSSLHSGVPSRFSGSGSGTDFTLTISSLQPEDFATYYCQQYSTVPWTFGQGTKVEIK"
     return l_chain, h_chains, seq_ids 
 
@@ -79,9 +79,9 @@ if __name__ == "__main__":
     parser.add_argument('--min_idx', type=int, default=None ) 
     parser.add_argument('--max_idx', type=int, default=None ) 
     parser.add_argument('--debug', type=bool, default=False)  
-    args = parser.parse_args() 
+    args = parser.parse_args() # (96846,) 
     fold(args) 
     # python3 fold_all.py --debug True --min_idx 1 --max_idx 2
     # jkgardner: conda activate og_lolbo_mols
     # gauss: conda activate igfold 
-    # python3 fold_all.py --min_idx 0 --max_idx 100 
+    # python3 fold_all.py --min_idx 0 --max_idx 5000 
