@@ -66,12 +66,25 @@ def fold(args):
     h_chains = h_chains[args.min_idx: args.max_idx]
     seq_ids = seq_ids[args.min_idx: args.max_idx]
     for ix, h_chain in enumerate(h_chains):
-        fold_protein( 
-            igfold_runner=igfold_runner,
-            heavy_chain_seq=h_chain, 
-            save_path=f"folded_pdbs/{prefix}{seq_ids[ix]}.pdb", 
-            light_chain_seq=l_chain,
-        )
+        try:
+            fold_protein( 
+                igfold_runner=igfold_runner,
+                heavy_chain_seq=h_chain, 
+                save_path=f"folded_pdbs/{prefix}{seq_ids[ix]}.pdb", 
+                light_chain_seq=l_chain,
+            )
+        except Exception as e:
+            try: 
+                h_chain = h_chain.replace("X", "-") 
+                fold_protein( 
+                    igfold_runner=igfold_runner,
+                    heavy_chain_seq=h_chain, 
+                    save_path=f"folded_pdbs/{prefix}{seq_ids[ix]}.pdb", 
+                    light_chain_seq=l_chain,
+                )
+            except Exception as e:
+                print(f"failed to fold seq {seq_ids[ix]} to to exception {e}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser() 
