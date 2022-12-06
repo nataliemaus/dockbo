@@ -22,21 +22,21 @@ def fold_protein(
             sequences=sequences, # Antibody sequences
             do_refine=True,#  True, # Refine the antibody structure with PyRosetta
             do_renum=False, # True, # Renumber predicted antibody structure (Chothia) :) ! 
-        ) 
-        ## do_renum=True causes bug :( 
+        )  ## do_renum=True causes bug :( 
         remove_hetero_atoms_and_hydrogens(save_path)
         # Debug example 2: 
         # Time fold 27.422064065933228
         # Time save hetero atoms 0.05717658996582031
-        return out 
+        
 
 def load_seqs():
-    df = pd.read_csv('new_100k_seqs.csv')
-    seq_ids = df['seq_ids']
-    h_chains = df['h_chains']
-    l_chain = df['l_chains'][0]
+    # RANIBIZUMAB 
+    # http://opig.stats.ox.ac.uk/webapps/newsabdab/therasabdab/therasummary/?INN=Ranibizumab
+    df = pd.read_csv('rani_display_with_sequences.csv')
+    seq_ids = df['Unnamed: 0'].squeeze() # (96846,)
+    h_chains = df['full_sequence'] # (96846,) 
+    l_chain = "DIQLTQSPSSLSASVGDRVTITCSASQDISNYLNWYQQKPGKAPKVLIYFTSSLHSGVPSRFSGSGSGTDFTLTISSLQPEDFATYYCQQYSTVPWTFGQGTKVEIK"
     return l_chain, h_chains, seq_ids 
-    
 
 def load_debug():
     hc1 = "TVSSTVYNPTVSSTVSSTVTVSSTVSSTVSSTVSSTVSSDKAKGYTTETVSSTVSSSSTVSVKGRVTVSSTVSSTVSTVSSTVSSTVKNQFSLTVSSTVSSTVSSYWGQGSTVRTVSSSTVTMLVDTSTVSSTVSSTVSSTVLSSVTATVSSTVAVYYCARTVSSTVSSTVSSTVEGHTVAPFDLSSTVSSTVADTATVSS"
@@ -51,7 +51,7 @@ def load_debug():
 def fold(args):
     init_pyrosetta()
     igfold_runner = IgFoldRunner()
-    if args.debug:
+    if args.debug: 
         l_chain, h_chains, seq_ids  = load_debug() 
         prefix = "debug"
     else:
@@ -75,10 +75,13 @@ def fold(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser() 
-    parser.add_argument('--work_dir', default='/home/nmaus/' )  
+    # parser.add_argument('--work_dir', default='/home/nmaus/' )  
     parser.add_argument('--min_idx', type=int, default=None ) 
     parser.add_argument('--max_idx', type=int, default=None ) 
     parser.add_argument('--debug', type=bool, default=False)  
     args = parser.parse_args() 
     fold(args) 
     # python3 fold_all.py --debug True --min_idx 1 --max_idx 2
+    # jkgardner: conda activate og_lolbo_mols
+    # gauss: conda activate igfold 
+    # python3 fold_all.py --min_idx 0 --max_idx 100 

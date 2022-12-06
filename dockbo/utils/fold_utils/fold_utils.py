@@ -19,4 +19,4 @@ def remove_hetero_atoms_and_hydrogens(path_to_pdb):
     save_path_noh = save_path.replace(".pdb", "_noh.pdb")
     os.system(f"pdb_delelem -H {save_path} > {save_path_noh}")
 
-    return save_path_noh
+    return save_path_noh 
