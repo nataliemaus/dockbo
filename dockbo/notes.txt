@@ -1,0 +1,9 @@
+running 
+
+1. dockbo with 3 tr restarts bighat (-dfire2), bighat2 (dfire2)
+    Do either recover the actual known position? 
+
+2. lightdock both restrained with dfire2 to see if we get same diagonal :)
+    i.e. is dfire2 a valid scoring function like dfire is? 
+
+    Note: the restrains themselves contribute to the score which could be messing w/ things.

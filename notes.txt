@@ -1,0 +1,45 @@
+Currently running lightdock w/ Nruns 10 to see if we still get good diagonal result
+
+
+
+#  11/10/21 SABDAB 
+
+1. If we give trubo the true configuration (no rotation or translation),
+#   it can easily improve the score by epsilon, but does so by making tiny 
+#   tiny changes to known pose which is valid. 
+#   (see sabadab_best_poses1 for dfire and sabadab_best_poses1 for dfire2)
+
+Next: 
+- next we want to fix this by not giving turbo the opportunity 
+        to cheat with the known pose (start from scratch)
+- when we start from scratch it takes a while for it to find anything
+    at all with positive energy score
+    we want to see if we can recover the best pose via optimization 
+    also want to record the translation and rotation vectors 
+    (magnitude of translation, degrees of rotation? )
+    - 0 translaation and 0 degrees rotation == correct pose 
+
+
+
+
+
+
+
+
+
+
+DOCKBO TODO
+1. Add restraints to dfire, dfire2 scoring functions for dockbo version of things 
+    (Currently dfire, dfire2 work but don't recover true pose even with tons of optimization time)
+
+LIGHTDOCK TODO:
+1. Figure out how to add restraints w/ nanonet. 
+
+
+RUNNING 
+1. Creating lightdock matrix with abrestrained only (can we remove issue of restraining nanonet things)
+    1a.  If that dosesn't work, must fix nanonet restraints? 
+2. Then Run test_dockbo.py once w/ dfire and once w/ dfire2 to create restrained dockbo matrix!! 
+
+TODO/ RUN 
+1. Restart the random sampling experiments (hopefully can do those w/ dockbo rather than lightdock!) (TODO, TBD)

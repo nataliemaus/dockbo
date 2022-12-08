@@ -26,7 +26,6 @@ sabdab_best_poses*/
 sabdab_best_poses*/*
 *.pdb 
 *.csv 
-*.txt 
 *.pkl 
 *.pt 
 *.list 
