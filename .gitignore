@@ -24,7 +24,6 @@ bothrestrained_lightdock_poses/
 bothrestrained_lightdock_poses/*
 sabdab_best_poses*/
 sabdab_best_poses*/*
-*.pdb 
 *.csv 
 *.pkl 
 *.pt 
@@ -44,7 +43,14 @@ example/restrained_v2_fastdfire/
 example/restrained_v2_fastdfire/*
 saved_structures/
 saved_structures/* 
-*.pdb 
 *.fasta
-
-
+saved_poses/*.pdb
+sabdab_nano_chothia/*.pdb
+new_dataset/folded_pdbs_old/seq0_aligned2.pdb
+new_dataset/folded_pdbs_old/*.pdb 
+parsed_chothia_pdbs/*.pdb 
+new_dataset/folded_pdbs/*.pdb 
+saved_poses/*.pdb 
+saved_poses/*
+*combined_structure*.pdb
+]\\/*
