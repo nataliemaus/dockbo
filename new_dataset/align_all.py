@@ -14,19 +14,21 @@ def align(pm, known_pose_id, new_ab_structure_path, new_ab_structure):
     pm(f'super {new_ab_structure}, {known_pose}')
     pm(f'select old_ab, model {known_pose}') # you'll have to figure out which chain is which 
     pm(f'remove old_ab') 
-    pm(f"save {new_ab_structure_path}_aligned{known_pose_id}.pdb") 
-    pm(f'delete all') 
+    pm(f"save aligned/{new_ab_structure}_aligned{known_pose_id}.pdb") 
 
 
 def align_all(n_seqs=100_000):
     pm = pymolPy3.pymolPy3(0)
+    assert os.path.exists(f'1cz8_known_poses/known_ab_pose{1}.pdb')
+    assert os.path.exists(f'1cz8_known_poses/known_ab_pose{2}.pdb') 
     for seq_id in range(n_seqs):
         new_path = f"folded_pdbs/seq{seq_id}"
         ab_name = f"seq{seq_id}"
-        try: 
-            # if not os.path.exists(f"{new_path}_aligned{1}.pdb"):
-            if True: 
-                align(
+        if os.path.exists(new_path + ".pdb"):
+            try: 
+            # if os.path.exists(f"{new_path}_aligned{1}.pdb"):
+            # if True: 
+                align( 
                     pm=pm, 
                     known_pose_id=1,
                     new_ab_structure_path=new_path, # save_path.replace(".pdb", "")
@@ -34,15 +36,14 @@ def align_all(n_seqs=100_000):
                 )
                 # remove_hetero_atoms_and_hydrogens(f"{new_path}_aligned1.pdb") 
             # if not os.path.exists(f"{new_path}_aligned{2}.pdb"):
-            if True: 
                 align(
                     pm=pm, 
                     known_pose_id=2,
                     new_ab_structure_path=new_path, # save_path.replace(".pdb", "")
                     new_ab_structure=ab_name, # save_path.replace(".pdb", "")
                 )
-        except:
-            pass 
+            except:
+                pass 
 
 
 if __name__ == "__main__": 

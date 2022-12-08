@@ -21,7 +21,7 @@ def compute_scores(args):
     seq_ids = []
     energies = [] 
     for seq_id in range(args.n_seqs):
-        aligned_ab_structure_path= args.work_dir + f"dockbo/new_dataset/folded_pdbs/seq{seq_id}_aligned{args.known_pose_id}.pdb"
+        aligned_ab_structure_path= args.work_dir + f"dockbo/new_dataset/aligned/seq{seq_id}_aligned{args.known_pose_id}.pdb"
         try:
             aligned_ab_path = remove_hetero_atoms_and_hydrogens(aligned_ab_structure_path)
             if seq_id == 0:
@@ -46,6 +46,7 @@ def compute_scores(args):
                 print(e)  
                 import pdb 
                 pdb.set_trace() 
+        print("energies:", energies) 
     # save all computed seq ids and energies 
     seq_ids = np.array(seq_ids )
     energies = np.array(energies )
