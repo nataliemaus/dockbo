@@ -53,6 +53,19 @@ def align_all(n_seqs=100_000):
         except:
             pass 
 
-# conda activate pymol 
-# python3 align_all.py
-align_all(n_seqs = 2)
+
+if __name__ == "__main__": 
+    import argparse 
+    parser = argparse.ArgumentParser()  
+    parser.add_argument('--n_seqs', type=int, default=100_000 ) 
+    parser.add_argument('--debug', type=bool, default=False ) 
+    args = parser.parse_args() 
+    if args.debug: 
+        args.n_seqs = 2 
+    # conda activate pymol 
+    # python3 align_all.py
+    align_all(n_seqs = args.n_seqs)
+
+
+
+
