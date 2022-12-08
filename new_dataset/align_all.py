@@ -1,6 +1,7 @@
 import pymolPy3
 import sys 
 sys.path.append("../")
+import os 
 # from dockbo.utils.fold_utils.fold_utils import remove_hetero_atoms_and_hydrogens
 
 def align(pm, known_pose_id, new_ab_structure_path, new_ab_structure):
@@ -20,36 +21,24 @@ def align(pm, known_pose_id, new_ab_structure_path, new_ab_structure):
 def align_all(n_seqs=100_000):
     pm = pymolPy3.pymolPy3(0)
     for seq_id in range(n_seqs):
+        new_path = f"folded_pdbs/seq{seq_id}"
+        ab_name = f"seq{seq_id}"
         try: 
-            new_path = f"folded_pdbs/seq{seq_id}"
-            ab_name = f"seq{seq_id}"
-            align(
-                pm=pm, 
-                known_pose_id=1,
-                new_ab_structure_path=new_path, # save_path.replace(".pdb", "")
-                new_ab_structure=ab_name, # save_path.replace(".pdb", "")
-            )
-            # remove_hetero_atoms_and_hydrogens(f"{new_path}_aligned1.pdb") 
-            align(
-                pm=pm, 
-                known_pose_id=2,
-                new_ab_structure_path=new_path, # save_path.replace(".pdb", "")
-                new_ab_structure=ab_name, # save_path.replace(".pdb", "")
-            )
-            # remove_hetero_atoms_and_hydrogens(f"{new_path}_aligned2.pdb") 
-            # align(
-            #     pm=pm, 
-            #     known_pose_id=1,
-            #     new_ab_structure_path=f"folded_pdbs/seq{seq_id}_no_het_noh", # save_path.replace(".pdb", "")
-            #     new_ab_structure=f"seq{seq_id}_no_het_noh", # save_path.replace(".pdb", "")
-            # )
-            # align(
-            #     pm=pm, 
-            #     known_pose_id=2,
-            #     new_ab_structure_path=f"folded_pdbs/seq{seq_id}_no_het_noh", # save_path.replace(".pdb", "")
-            #     new_ab_structure=f"seq{seq_id}_no_het_noh", # save_path.replace(".pdb", "")
-            # )
-            
+            if not os.path.exists(f"{new_path}_aligned{1}.pdb"):
+                align(
+                    pm=pm, 
+                    known_pose_id=1,
+                    new_ab_structure_path=new_path, # save_path.replace(".pdb", "")
+                    new_ab_structure=ab_name, # save_path.replace(".pdb", "")
+                )
+                # remove_hetero_atoms_and_hydrogens(f"{new_path}_aligned1.pdb") 
+            if not os.path.exists(f"{new_path}_aligned{2}.pdb"):
+                align(
+                    pm=pm, 
+                    known_pose_id=2,
+                    new_ab_structure_path=new_path, # save_path.replace(".pdb", "")
+                    new_ab_structure=ab_name, # save_path.replace(".pdb", "")
+                )
         except:
             pass 
 
