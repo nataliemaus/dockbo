@@ -24,7 +24,8 @@ def align_all(n_seqs=100_000):
         new_path = f"folded_pdbs/seq{seq_id}"
         ab_name = f"seq{seq_id}"
         try: 
-            if not os.path.exists(f"{new_path}_aligned{1}.pdb"):
+            # if not os.path.exists(f"{new_path}_aligned{1}.pdb"):
+            if True: 
                 align(
                     pm=pm, 
                     known_pose_id=1,
@@ -32,7 +33,8 @@ def align_all(n_seqs=100_000):
                     new_ab_structure=ab_name, # save_path.replace(".pdb", "")
                 )
                 # remove_hetero_atoms_and_hydrogens(f"{new_path}_aligned1.pdb") 
-            if not os.path.exists(f"{new_path}_aligned{2}.pdb"):
+            # if not os.path.exists(f"{new_path}_aligned{2}.pdb"):
+            if True: 
                 align(
                     pm=pm, 
                     known_pose_id=2,
