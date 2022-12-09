@@ -24,7 +24,7 @@ def align_all(n_seqs=100_000):
     for seq_id in range(n_seqs):
         new_path = f"folded_pdbs/seq{seq_id}"
         ab_name = f"seq{seq_id}"
-        if os.path.exists(new_path + ".pdb"):
+        if (not os.path.exists(f"aligned/{ab_name}_aligned{1}.pdb")) and os.path.exists(new_path + ".pdb"): 
             try: 
             # if os.path.exists(f"{new_path}_aligned{1}.pdb"):
             # if True: 

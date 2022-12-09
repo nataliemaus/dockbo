@@ -5,6 +5,8 @@ from dockbo.dockbo import DockBO
 import numpy as np
 import pandas as pd
 from dockbo.utils.fold_utils.fold_utils import remove_hetero_atoms_and_hydrogens
+import os 
+import glob 
 
 def compute_scores(args):
     antigen_path = args.work_dir + 'dockbo/new_dataset/1cz8_known_poses/known_ag_pose.pdb'
@@ -22,31 +24,41 @@ def compute_scores(args):
     energies = [] 
     for seq_id in range(args.n_seqs):
         aligned_ab_structure_path= args.work_dir + f"dockbo/new_dataset/aligned/seq{seq_id}_aligned{args.known_pose_id}.pdb"
-        try:
-            aligned_ab_path = remove_hetero_atoms_and_hydrogens(aligned_ab_structure_path)
-            if seq_id == 0:
-                true_dict = oracle(
-                    config_x="default",
-                    path_to_antibody_pdb=true_ab_path,
-                    save_pdb_pose_path=true_ab_path.replace(".pdb", "_combined_structure")
+        check_exists = aligned_ab_structure_path[0:-4] 
+        check_exists = glob.glob(check_exists + "_no_het_noh_combined_structure*.pdb")
+        if len(check_exists) > 0: # we have already saved this one 
+            print('continuing ix', seq_id)
+            seq_ids.append(seq_id) 
+            energies.append(float(check_exists[0].split("y")[-1][0:-4]))
+        else:
+            # try: 
+            if True: 
+                aligned_ab_path = remove_hetero_atoms_and_hydrogens(aligned_ab_structure_path)
+                if seq_id == 0:
+                    true_dict = oracle(
+                        config_x="default",
+                        path_to_antibody_pdb=true_ab_path,
+                        save_pdb_pose_path=true_ab_path.replace(".pdb", "_combined_structure")
+                    )
+                    energy = true_dict['energy']
+                    seq_ids.append(-1) # -1 indicates the known strucutre! 
+                    energies.append(energy)
+                return_dict = oracle(
+                    config_x="default", 
+                    path_to_antibody_pdb=aligned_ab_path,
+                    save_pdb_pose_path=aligned_ab_path.replace(".pdb", "_combined_structure")
                 )
-                energy = true_dict['energy']
-                seq_ids.append(-1) # -1 indicates the known strucutre! 
+                energy = return_dict['energy']
+                seq_ids.append(seq_id)
                 energies.append(energy)
-            return_dict = oracle(
-                config_x="default", 
-                path_to_antibody_pdb=aligned_ab_path,
-                save_pdb_pose_path=aligned_ab_path.replace(".pdb", "_combined_structure")
-            )
-            energy = return_dict['energy']
-            seq_ids.append(seq_id)
-            energies.append(energy)
-        except Exception as e: 
-            if args.debug:
-                print(e)  
-                import pdb 
-                pdb.set_trace() 
-        print("energies:", energies) 
+                print('computed ix', seq_id)
+            # except Exception as e: 
+            #     if args.debug:
+            #         print(e)  
+            #         import pdb 
+            #         pdb.set_trace() 
+            #     print('failed ix', seq_id)
+
     # save all computed seq ids and energies 
     seq_ids = np.array(seq_ids )
     energies = np.array(energies )
@@ -69,5 +81,8 @@ if __name__ == "__main__":
     compute_scores(args) 
     #  conda activate og_lolbo_mols 
     # python3 compute_scores.py --debug True 
+
+    #  python3 compute_scores.py --work_dir /shared_data/
+
 
 
