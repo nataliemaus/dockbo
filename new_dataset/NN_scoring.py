@@ -164,6 +164,8 @@ def train(args):
         for ix, (batch_x, batch_y) in enumerate(train_loader):
             optimizer.zero_grad()
             output = model(batch_x) 
+            import pdb 
+            pdb.set_trace() 
             loss = model.loss(output, batch_y)
             losses.append(loss.item() )
             tracker.log({"train_loss_per_batch": loss.item() })
