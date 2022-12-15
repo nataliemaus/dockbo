@@ -155,13 +155,8 @@ def train(args):
 
     train_dataset = TensorDataset(train_X.cuda(), train_Y.cuda())
     train_loader = DataLoader(train_dataset, batch_size=args.bsz)
-
     val_dataset = TensorDataset(val_X.cuda(), val_Y.cuda())
     val_loader = DataLoader(val_dataset, batch_size=args.bsz)
-
-    import pdb 
-    pdb.set_trace() 
-
     lowest_loss = torch.inf 
     for epoch in range(args.max_epochs): 
         model = model.train() 
@@ -213,5 +208,5 @@ if __name__ == "__main__":
     parser.add_argument('--wandb_project_name', default="train-binding-affinity-model" )  
     parser.add_argument('--load_ckpt_wandb_name', default="" ) 
     args = parser.parse_args() 
-    # CUDA_VISIBLE_DEVICES=1 python3 NN_scoring.py --lr 0.001 --dim_feedforward 256 --bsz 128 --num_layers 6 --nhead 8
+    # CUDA_VISIBLE_DEVICES=9 python3 NN_scoring.py --lr 0.001 --dim_feedforward 256 --bsz 128 --num_layers 6 --nhead 8
     train(args) 
