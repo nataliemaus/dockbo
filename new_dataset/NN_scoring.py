@@ -200,12 +200,12 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=0.0001)  
     # parser.add_argument('--compute_val_freq', type=int, default=5 ) 
     parser.add_argument('--max_epochs', type=int, default=1_000_000_000 ) 
-    parser.add_argument('--dim_feedforward', type=int, default=32 )   
+    parser.add_argument('--dim_feedforward', type=int, default=16 )   
     parser.add_argument('--nhead', type=int, default=4 )   
     parser.add_argument('--num_layers', type=int, default=2 )   
     parser.add_argument('--embedding_dim', type=int, default=16 )   
-    parser.add_argument('--enc_dropout', type=float, default=0.5 ) 
-    parser.add_argument('--extra_dropout', type=float, default=0.5 ) 
+    parser.add_argument('--enc_dropout', type=float, default=0.2 ) 
+    parser.add_argument('--extra_dropout', type=float, default=0.2 ) 
     parser.add_argument('--bsz', type=int, default=128 ) 
     parser.add_argument('--debug', type=bool, default=False ) 
     parser.add_argument('--wandb_entity', default="nmaus" )
@@ -215,5 +215,5 @@ if __name__ == "__main__":
     args = parser.parse_args() 
     # conda activate lolbo_mols
     # tmux attach -t dockmodel
-    # CUDA_VISIBLE_DEVICES=0 python3 NN_scoring.py --lr 0.01 --attention True   
+    # CUDA_VISIBLE_DEVICES=0 python3 NN_scoring.py --lr 0.0001 --attention True   
     train(args) 
