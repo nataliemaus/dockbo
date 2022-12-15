@@ -157,7 +157,6 @@ def train(args):
         {'params': model.parameters()}, ], 
         lr=args.lr
     ) 
-
     train_dataset = TensorDataset(train_X.cuda(), train_Y.cuda())
     train_loader = DataLoader(train_dataset, batch_size=args.bsz)
     val_dataset = TensorDataset(val_X.cuda(), val_Y.cuda())
@@ -201,12 +200,12 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=0.0001)  
     # parser.add_argument('--compute_val_freq', type=int, default=5 ) 
     parser.add_argument('--max_epochs', type=int, default=1_000_000_000 ) 
-    parser.add_argument('--dim_feedforward', type=int, default=256 )   
-    parser.add_argument('--nhead', type=int, default=8 )   
-    parser.add_argument('--num_layers', type=int, default=6 )   
+    parser.add_argument('--dim_feedforward', type=int, default=32 )   
+    parser.add_argument('--nhead', type=int, default=4 )   
+    parser.add_argument('--num_layers', type=int, default=2 )   
     parser.add_argument('--embedding_dim', type=int, default=16 )   
-    parser.add_argument('--enc_dropout', type=float, default=0.1 ) 
-    parser.add_argument('--extra_dropout', type=float, default=0.1 ) 
+    parser.add_argument('--enc_dropout', type=float, default=0.5 ) 
+    parser.add_argument('--extra_dropout', type=float, default=0.5 ) 
     parser.add_argument('--bsz', type=int, default=128 ) 
     parser.add_argument('--debug', type=bool, default=False ) 
     parser.add_argument('--wandb_entity', default="nmaus" )
@@ -216,5 +215,5 @@ if __name__ == "__main__":
     args = parser.parse_args() 
     # conda activate lolbo_mols
     # tmux attach -t dockmodel
-    # CUDA_VISIBLE_DEVICES=0 python3 NN_scoring.py --lr 0.00001 --dim_feedforward 128 --bsz 128 --num_layers 6 --nhead 8 --extra_dropout 0.5 --enc_dropout 0.5
+    # CUDA_VISIBLE_DEVICES=0 python3 NN_scoring.py --lr 0.01 --attention True   
     train(args) 
