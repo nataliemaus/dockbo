@@ -1,14 +1,123 @@
 import numpy as np 
 import torch 
+import matplotlib.pyplot as plt 
+import pandas as pd 
 
-tensor = []
+def load_data():
+    # RANIBIZUMAB 
+    # http://opig.stats.ox.ac.uk/webapps/newsabdab/therasabdab/therasummary/?INN=Ranibizumab
+    df = pd.read_csv('rani_display_with_sequences.csv')
+    seq_ids = df['Unnamed: 0'].squeeze().values # (96846,)
+    h_chains = df['full_sequence'].values # (96846,) 
+    l_chain = "DIQLTQSPSSLSASVGDRVTITCSASQDISNYLNWYQQKPGKAPKVLIYFTSSLHSGVPSRFSGSGSGTDFTLTISSLQPEDFATYYCQQYSTVPWTFGQGTKVEIK"
+    corr1 = df['log(R3/R2) replicate 1'].values # (96846,)
+    corr2 = df['log(R3/R2) replicate 2'].values # (96846,)
+    return seq_ids, corr1, corr2 
 
-l1 = "tensor(30.9580), tensor(11.6277), tensor(-12.8752), tensor(-27.3899), tensor(-26.5732), tensor(-2.7569), tensor(0.9780), tensor(-0.8066), tensor(-18.8622), tensor(3.2453), tensor(-17.2469), tensor(8.5035), tensor(13.1929), tensor(2.5772), tensor(1.4237), tensor(3.8932), tensor(-19.1204), tensor(-3.0043), tensor(-7.7446), tensor(9.9758), tensor(-13.2719), tensor(-9.9867), tensor(1.2564), tensor(-2.6776), tensor(3.2832), tensor(2.7267), tensor(8.3199), tensor(-8.6816), tensor(-15.3583), tensor(8.7769), tensor(-5.8716), tensor(-15.5489), tensor(8.2641), tensor(-27.3900), tensor(-26.9665), tensor(7.3715), tensor(-9.7526), tensor(1.1164), tensor(-27.1402), tensor(-13.1595), tensor(-2.6394), tensor(-4.4863), tensor(-8.7290), tensor(-3.9371), tensor(1.6058), tensor(-4.3146), tensor(-27.8633), tensor(-14.9939), tensor(10.5429), tensor(2.7016), tensor(-13.5879), tensor(-23.2740), tensor(10.9738), tensor(-19.1824), tensor(-8.1236), tensor(7.7267), tensor(-0.1584), tensor(3.6817), tensor(-1.9138), tensor(1.9226), tensor(2.6566), tensor(0.6255), tensor(-14.1307), tensor(0.8522), tensor(-5.2788), tensor(-22.0746), tensor(-19.0487), tensor(-11.1218), tensor(8.7282), tensor(-12.2597), tensor(7.0383), tensor(4.9952), tensor(8.3647), tensor(-9.6439), tensor(-11.2016), tensor(-23.3991), tensor(-11.6387), tensor(2.3602), tensor(8.7899), tensor(-14.6401), tensor(-36.9275), tensor(-16.6321), tensor(-5.7705), tensor(-5.0369), tensor(-2.3542), tensor(-10.7830), tensor(6.8450), tensor(-7.0246), tensor(0.5652), tensor(-1.4441), tensor(-25.8634), tensor(-11.3445), tensor(-11.0649), tensor(-13.6736), tensor(-16.4317), tensor(-6.5517), tensor(-9.7995), tensor(-13.9086), tensor(-22.3793), tensor(-0.8070), tensor(-22.0120), tensor(1.3014), tensor(7.4384), tensor(-19.1425), tensor(-14.3687), tensor(-2.5214), tensor(-21.4802), tensor(-3.5323), tensor(-12.5527), tensor(2.5127), tensor(6.4333), tensor(-18.6052), tensor(-6.3759), tensor(-4.5392), tensor(-2.5453), tensor(-8.5617), tensor(-11.9517), tensor(-5.8715), tensor(11.6878), tensor(-11.7559), tensor(12.8546), tensor(9.9668), tensor(-17.0189), tensor(4.1992), tensor(-4.2443), tensor(-6.4373), tensor(1.3563), tensor(7.7845), tensor(-30.5917), tensor(-5.0426), tensor(1.2074), tensor(-6.4796), tensor(-5.6519), tensor(3.5738), tensor(-16.5769), tensor(-1.2363), tensor(0.6681), tensor(-18.4257), tensor(-1.8433), tensor(-18.2483), tensor(-1.5794), tensor(0.0582), tensor(-1.7730), tensor(-10.6508), tensor(-9.9595)"
-import pdb 
-pdb.set_trace()  
 
-ten = torch.tenspr(l1)
+def plot_dfire_dfire2():
+    filenm = f"dfire_scores.csv"
+    df1 = pd.read_csv(filenm)
+    seq_ids_computed1 = df1['seq_id'].values.tolist() 
+    scores1 = df1[f'dfire_score'].values 
+    filenm = f"dfire2_scores.csv"
+    df2 = pd.read_csv(filenm)
+    seq_ids_computed2 = df2['seq_id'].values.tolist() 
+    scores2 = df2[f'dfire2_score'].values 
 
-# arr = torch.from_numpy(ten)
+    dfire = []
+    dfire2 = []
+    for ix1, seq_id in enumerate(seq_ids_computed1):
+        if seq_id in seq_ids_computed2:
+            dfire_s = scores1[ix1]
+            dfire2_s = scores2[seq_ids_computed2.index(seq_id)]
+            if dfire_s < 200 and dfire2_s > 500:
+                dfire.append(dfire_s)
+                dfire2.append(dfire2_s) 
+    
+    # corr1 
+    save_path = f"plots/dfire_vs_dfire2_default_pose.png"
+    plt.scatter(dfire2, dfire)
+    plt.title(F"dfire vs. dfire2 scores")
+    plt.xlabel(f"dfire2")
+    plt.ylabel(f"dfire")
+    plt.savefig(save_path) 
+    plt.clf() 
 
+
+
+
+
+
+
+def plotit(args):
+    seq_ids, corr1_, corr2_ = load_data() 
+    filenm = f"{args.score_f}_scores.csv"
+    if args.optimized:
+        filenm = "optimized_" + filenm 
+    df = pd.read_csv(filenm)
+    seq_ids_computed = df['seq_id'].values
+    scores = df[f'{args.score_f}_score'].values 
+    assert seq_ids_computed.shape == scores.shape 
+    if seq_ids_computed[0] == -1:
+        seq_ids_computed = seq_ids_computed[1:]
+        scores = scores[1:]
+    corr1 = corr1_[seq_ids_computed]
+    corr2 = corr2_[seq_ids_computed]
+    bool1 = np.logical_not(np.isnan(corr1))
+    bool2 = np.logical_not(np.isnan(corr2))
+    corr1 = corr1[bool1]
+    corr2 = corr2[bool2]
+    scores1 = scores[bool1]
+    scores2 = scores[bool2]
+
+    if args.score_f == "dfire":
+        bool1b = scores1 < 200 
+        bool2b = scores2 < 200 
+    elif args.score_f == "dfire2":
+        bool1b = scores1 > 500
+        bool2b = scores2 > 500
+
+    corr1 = corr1[bool1b]
+    scores1 = scores1[bool1b]
+    bool2b = scores2 < 200 
+    corr2 = corr2[bool2b]
+    scores2 = scores2[bool2b]
+
+    # corr1 
+    save_path = args.save_dir + f"corr1_vs_{args.score_f}_default_pose.png"
+    if args.optimized:
+        save_path = args.save_dir + f"corr1_vs_{args.score_f}_optimized_pose.png"
+    plt.scatter(scores1, corr1)
+    plt.title(F"log(R3/R2) replicate 1 vs. {args.score_f} Scores")
+    plt.xlabel(f"{args.score_f} score")
+    plt.ylabel(f"log(R3/R2) replicate 1")
+    plt.savefig(save_path) 
+    plt.clf() 
+
+    # corr2 
+    save_path = args.save_dir + f"corr2_vs_{args.score_f}_default_pose.png"
+    if args.optimized:
+        save_path = args.save_dir + f"corr2_vs_{args.score_f}_optimized_pose.png"
+    plt.scatter(scores2, corr2)
+    plt.xlabel(f"{args.score_f} score")
+    plt.ylabel(f"log(R3/R2) replicate 2")
+    plt.title(F"log(R3/R2) replicate 2 vs. {args.score_f} Scores")
+    plt.savefig(save_path) 
+    plt.clf() 
+
+if __name__ == "__main__": 
+    import argparse 
+    parser = argparse.ArgumentParser()  
+    parser.add_argument('--save_dir', default="plots/" ) # "dfire, cpydock, dfire2"
+    parser.add_argument('--work_dir', default='/home/nmaus/' ) 
+    parser.add_argument('--score_f', default='dfire' ) 
+    parser.add_argument('--optimized', type=bool, default=False ) 
+    parser.add_argument('--dfire_dfire2', type=bool, default=True)
+    args = parser.parse_args() 
+
+    if args.dfire_dfire2:
+        plot_dfire_dfire2()
+    else:
+        plotit(args) 
 

@@ -12,6 +12,7 @@ from dockbo.utils.lightdock_torch_utils.lightdock_constants import (
     DEFAULT_NMODES_LIG,
 )
 # from dockbo.utils.lightdock_torch_utils.setup_sim import get_setup_from_file 
+from dockbo.utils.lightdock_torch_utils.scoring.cpydock_driver import CPyDockAdapter, CPyDock 
 from dockbo.utils.lightdock_torch_utils.scoring.dfire2_driver import DFIRE2Potential
 from dockbo.utils.lightdock_torch_utils.PDBIO import write_pdb_to_file
 from dockbo.utils.lightdock_torch_utils.restraints import (
@@ -81,7 +82,7 @@ class DockBO():
         self.max_n_tr_restarts = max_n_tr_restarts
         self.is_receptor = is_receptor
         self.scoring_func = scoring_func 
-        assert scoring_func in ['dfire', 'dfire2']
+        assert scoring_func in ['dfire', 'dfire2', 'cpydock']
         self.verbose_timing = verbose_timing 
         start_init = time.time() 
         # temporary directory for lightdock files 
@@ -129,6 +130,10 @@ class DockBO():
         elif self.scoring_func == 'dfire2':
             AdapterClass = Dfire2Adapter
             self.potentials = DFIRE2Potential(work_dir=work_dir)
+        elif self.scoring_func == "cpydock":
+            AdapterClass = CPyDockAdapter
+            self.cpydock_oracle = CPyDock() 
+
 
         self.default_adapter = AdapterClass(
             receptor=self.default_receptor, 
@@ -501,6 +506,14 @@ class DockBO():
                 get_cdr_stats=get_cdr_stats,
                 cdr3_only_version=self.cdr3_only_version,
                 cdr3_extra_weight=self.cdr3_extra_weight, 
+            )
+        elif self.scoring_func == "cpydock":
+            return_dict = {}
+            return_dict['energy'] = self.cpydock_oracle(
+                receptor=self.adapter.receptor_model, # self.receptor, 
+                receptor_coordinates=self.receptor_coords, 
+                ligand=self.adapter.ligand_model, # self.ligand 
+                ligand_coordinates=self.ligand_coords,
             )
         return return_dict 
 
