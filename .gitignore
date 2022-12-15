@@ -54,3 +54,15 @@ saved_poses/*.pdb
 saved_poses/*
 *combined_structure*.pdb
 ]\\/*
+aligned/
+aligned/*
+aligned/*.pdb
+aligned_old/
+aligned_old/*
+aligned1/
+aligned1/*
+aligned2/
+aligned2/*
+folded_pdbs_old2/
+folded_pdbs_old2/*
+try1.pdb
