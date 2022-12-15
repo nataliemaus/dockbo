@@ -44,27 +44,30 @@ class Net(nn.Module):
         num_layers=6,
         enc_dropout=0.1,
         extra_dropout=0.1,
+        attention=False,
     ):
         super().__init__()
         self.vocab = vocab 
+        self.attention = attention
         self.max_seq_length = max_seq_length
         self.vocab_size = len(vocab)
         self.embedding = nn.Embedding(
             num_embeddings=self.vocab_size, 
             embedding_dim=embedding_dim
         )
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=embedding_dim,
-            nhead=nhead,
-            dim_feedforward=dim_feedforward,
-            dropout=enc_dropout,
-            activation="relu",
-            batch_first=True,
-        )
-        self.transformer_encoder = nn.TransformerEncoder(
-            encoder_layer,
-            num_layers=num_layers,
-        )
+        if self.attention:
+            encoder_layer = nn.TransformerEncoderLayer(
+                d_model=embedding_dim,
+                nhead=nhead,
+                dim_feedforward=dim_feedforward,
+                dropout=enc_dropout,
+                activation="relu",
+                batch_first=True,
+            )
+            self.transformer_encoder = nn.TransformerEncoder(
+                encoder_layer,
+                num_layers=num_layers,
+            )
         self.dropout = nn.Dropout(p=extra_dropout) 
         self.fc1 = nn.Linear(embedding_dim, embedding_dim//2)
         self.fc2 = nn.Linear(embedding_dim//2, 1)
@@ -72,7 +75,8 @@ class Net(nn.Module):
 
     def forward(self, x):
         x = self.embedding(x)
-        x = self.transformer_encoder(x) 
+        if self.attention:
+            x = self.transformer_encoder(x) 
         x = x.mean(dim=1) 
         x = self.fc1(x)
         x = torch.nn.functional.relu(x)
@@ -141,6 +145,7 @@ def train(args):
         num_layers=args.num_layers, # 6,
         enc_dropout=args.enc_dropout, # 0.1,
         extra_dropout=args.extra_dropout, # 0.1 
+        attention=args.attention,
     )
     if args.load_ckpt_wandb_name: 
         path_to_state_dict = 'saved_models/' + args.load_ckpt_wandb_name + '_model_state.pkl'  
@@ -207,6 +212,9 @@ if __name__ == "__main__":
     parser.add_argument('--wandb_entity', default="nmaus" )
     parser.add_argument('--wandb_project_name', default="train-binding-affinity-model" )  
     parser.add_argument('--load_ckpt_wandb_name', default="" ) 
+    parser.add_argument('--attention', type=bool, default=False ) 
     args = parser.parse_args() 
-    # CUDA_VISIBLE_DEVICES=9 python3 NN_scoring.py --lr 0.001 --dim_feedforward 256 --bsz 128 --num_layers 6 --nhead 8
+    # conda activate lolbo_mols
+    # tmux attach -t dockmodel
+    # CUDA_VISIBLE_DEVICES=0 python3 NN_scoring.py --lr 0.00001 --dim_feedforward 128 --bsz 128 --num_layers 6 --nhead 8 --extra_dropout 0.5 --enc_dropout 0.5
     train(args) 
