@@ -87,7 +87,7 @@ if __name__ == "__main__":
     compute_scores(args) 
 
     # example command:
-    # python3 tutorial.py --score_f dfire2 --work_dir /home/nmaus/
+    # python3 tutorial.py --work_dir /home/nmaus/ --aligned_antibodies_dir YOUR_PATH/aligned1/
 
 
 
