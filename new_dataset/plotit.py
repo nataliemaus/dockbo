@@ -15,32 +15,41 @@ def load_data():
     return seq_ids, corr1, corr2 
 
 
-def plot_dfire_dfire2():
-    filenm = f"dfire_scores.csv"
+def plot_score_score(score1, score2):
+    filenm = f"{score1}_scores.csv"
     df1 = pd.read_csv(filenm)
     seq_ids_computed1 = df1['seq_id'].values.tolist() 
-    scores1 = df1[f'dfire_score'].values 
-    filenm = f"dfire2_scores.csv"
+    scores1 = df1[f'{score1}_score'].values 
+    filenm = f"{score2}_scores.csv"
     df2 = pd.read_csv(filenm)
     seq_ids_computed2 = df2['seq_id'].values.tolist() 
-    scores2 = df2[f'dfire2_score'].values 
-
-    dfire = []
-    dfire2 = []
+    scores2 = df2[f'{score2}_score'].values 
+    plot_1 = []
+    plot_2 = []
     for ix1, seq_id in enumerate(seq_ids_computed1):
         if seq_id in seq_ids_computed2:
-            dfire_s = scores1[ix1]
-            dfire2_s = scores2[seq_ids_computed2.index(seq_id)]
-            if dfire_s < 200 and dfire2_s > 500:
-                dfire.append(dfire_s)
-                dfire2.append(dfire2_s) 
-    
-    # corr1 
-    save_path = f"plots/dfire_vs_dfire2_default_pose.png"
-    plt.scatter(dfire2, dfire)
-    plt.title(F"dfire vs. dfire2 scores")
-    plt.xlabel(f"dfire2")
-    plt.ylabel(f"dfire")
+            s1 = scores1[ix1]
+            s2 = scores2[seq_ids_computed2.index(seq_id)]
+            if score1 == "dfire":
+                condition1 = s1 < 200 
+            elif score1 == "dfire2":
+                condition1 = s1 > 500  
+            else: 
+                condition1 = True
+            if score2 == "dfire":
+                condition2 = s2 < 200 
+            elif score2 == "dfire2":
+                condition2 = s2 > 500  
+            else:
+                condition2 = True
+            if condition2 and condition1:
+                plot_1.append(s1)
+                plot_2.append(s2) 
+    save_path = f"plots/{score1}_vs_{score2}_default_pose.png"
+    plt.scatter(plot_2, plot_1)
+    plt.title(F"{score1} vs. {score2} scores")
+    plt.xlabel(f"{score2}")
+    plt.ylabel(f"{score1}")
     plt.savefig(save_path) 
     plt.clf() 
 
@@ -71,18 +80,18 @@ def plotit(args):
     scores1 = scores[bool1]
     scores2 = scores[bool2]
 
-    if args.score_f == "dfire":
-        bool1b = scores1 < 200 
-        bool2b = scores2 < 200 
-    elif args.score_f == "dfire2":
-        bool1b = scores1 > 500
-        bool2b = scores2 > 500
+    if args.score_f in ["dfire", "dfire2"]:
+        if args.score_f == "dfire":
+            bool1b = scores1 < 200 
+            bool2b = scores2 < 200 
+        elif args.score_f == "dfire2":
+            bool1b = scores1 > 500
+            bool2b = scores2 > 500
 
-    corr1 = corr1[bool1b]
-    scores1 = scores1[bool1b]
-    bool2b = scores2 < 200 
-    corr2 = corr2[bool2b]
-    scores2 = scores2[bool2b]
+        corr1 = corr1[bool1b]
+        scores1 = scores1[bool1b]
+        corr2 = corr2[bool2b]
+        scores2 = scores2[bool2b]
 
     # corr1 
     save_path = args.save_dir + f"corr1_vs_{args.score_f}_default_pose.png"
@@ -111,13 +120,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()  
     parser.add_argument('--save_dir', default="plots/" ) # "dfire, cpydock, dfire2"
     parser.add_argument('--work_dir', default='/home/nmaus/' ) 
-    parser.add_argument('--score_f', default='dfire' ) 
+    parser.add_argument('--score_f', default='cpydock' ) 
+    parser.add_argument('--score_f2', default='' ) # specify another score to do score-score plot
     parser.add_argument('--optimized', type=bool, default=False ) 
-    parser.add_argument('--dfire_dfire2', type=bool, default=True)
     args = parser.parse_args() 
 
-    if args.dfire_dfire2:
-        plot_dfire_dfire2()
+    if args.score_f2:
+        plot_score_score(score1=args.score_f, score2=args.score_f2)
     else:
         plotit(args) 
+    # CUDA_VISIBLE_DEVICES=1 python plotit.py --score_f2 dfire
 

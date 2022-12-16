@@ -255,6 +255,16 @@ def cpydock_calculate_energy(
     all_rec_des_e,
     all_lig_des_e,
 ):
+    all_rec_charges = torch.from_numpy(all_rec_charges).float().cuda() 
+    all_lig_charges = torch.from_numpy(all_lig_charges).float().cuda() 
+    all_rec_des_e = torch.from_numpy(all_rec_des_e).float().cuda()  
+    all_lig_des_e = torch.from_numpy(all_lig_des_e).float().cuda() 
+    all_rec_vdw_radii = torch.from_numpy(all_rec_vdw_radii).float().cuda()  
+    all_lig_vdw_radii = torch.from_numpy(all_lig_vdw_radii).float().cuda() 
+    all_rec_sasa = torch.from_numpy(all_rec_sasa).float().cuda() 
+    all_lig_sasa = torch.from_numpy(all_lig_sasa).float().cuda() 
+    all_rec_vdw_e = torch.from_numpy(all_rec_vdw_e).float().cuda() 
+    all_lig_vdw_e = torch.from_numpy(all_lig_vdw_e).float().cuda() 
     dist_matrix = torch.cdist(receptor_coordinates.squeeze(), ligand_coordinates.squeeze())
     atom_indexes = torch.where(dist_matrix <= 15.0) 
     rec_idxs = atom_indexes[0]
@@ -292,7 +302,8 @@ def cpydock_calculate_energy(
     total_vdw_e = total_vdw_e.sum() 
 
     # Calculate contact solvation for receptor
-    atom_indexes = torch.where(dist_matrix <= SOLVATION_DISTANCE and dist_matrix > 0.0 and all_rec_asa > 0) 
+    mask = (dist_matrix <= SOLVATION_DISTANCE) & (dist_matrix > 0.0) & (all_rec_sasa.unsqueeze(-1) > 0)
+    atom_indexes = torch.where(mask) 
     dists = dist_matrix[atom_indexes]
     rec_idxs = atom_indexes[0]
     rec_des_energy = all_rec_des_e[rec_idxs]
@@ -303,20 +314,17 @@ def cpydock_calculate_energy(
     total_solvation_rec = total_solvation_rec.sum() 
 
     # Calculate contact solvation for ligand
-    atom_indexes = torch.where(dist_matrix <= SOLVATION_DISTANCE and dist_matrix > 0.0 and all_lig_asa > 0) 
+    mask = (dist_matrix <= SOLVATION_DISTANCE) & (dist_matrix > 0.0) & (all_lig_sasa.unsqueeze(0) > 0)
+    atom_indexes = torch.where(mask)
     dists = dist_matrix[atom_indexes]
     lig_idxs = atom_indexes[1]
-    lig_des_energy = all_lig_des_e[rec_idxs]
+    lig_des_energy = all_lig_des_e[lig_idxs]
     lig_asa = all_lig_sasa[lig_idxs] 
     solv_lig = -10.0 * torch.sqrt(dists) + 65.0 
     solv_lig = torch.clamp(solv_lig, max=lig_asa) 
     total_solvation_lig = solv_lig * lig_des_energy 
     total_solvation_lig = total_solvation_lig.sum() 
-
-
     solv = -1 * (total_solvation_rec + total_solvation_lig)
     energy = (total_elec + SCORING_VDW_WEIGHT * total_vdw_e + solv) * -1.0
 
     return energy 
-
-

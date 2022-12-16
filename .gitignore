@@ -66,3 +66,7 @@ aligned2/*
 folded_pdbs_old2/
 folded_pdbs_old2/*
 try1.pdb
+*.pdb 
+*.fasta 
+tutorial/combined_structures/*.pdb 
+tutorial/computed_scores/*.csv 

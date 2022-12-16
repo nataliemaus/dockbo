@@ -44,10 +44,7 @@ def compute_scores(args):
         prefix = args.work_dir + f"dockbo/new_dataset/"
         if not args.default_pose:
             prefix = prefix + "optimized_pose_from_" 
-        if args.score_f == "dfire":
-            save_path = prefix + f"aligned{args.known_pose_id}_combined_structures/seq{seq_id}_aligned{args.known_pose_id}_{args.score_f}_combined_structure"
-        else: 
-            save_path = prefix + f"aligned{args.known_pose_id}_combined_structures/seq{seq_id}_aligned{args.known_pose_id}_combined_structure"
+        save_path = prefix + f"aligned{args.known_pose_id}_combined_structures/seq{seq_id}_aligned{args.known_pose_id}_{args.score_f}_combined_structure"
         check_exists = glob.glob(save_path + "*.pdb")
         if len(check_exists) > 0: # we have already saved this one 
             print('continuing ix', seq_id)
@@ -97,17 +94,14 @@ def save(seq_ids, energies, score_f, save_path):
     df.to_csv(save_path, index=None)
 
 
-def read_only(score_f, optimized_pose=True):
+def read_only(score_f, default_pose=True):
     seq_ids = [] 
     energies = []
     # seq5745_aligned1_combined_structure_bestenergy680.6613
     # seq5745_aligned1_dfire2_combined_structure_bestenergy680.6613
-    if score_f == "dfire" and False: # old 
-        filenm = "aligned1_combined_structures/*_aligned1_combined_structure*"
-    else:
-        filenm = f"aligned1_combined_structures/*_aligned1_{score_f}_combined_structure*"
+    filenm = f"aligned1_combined_structures/*_aligned1_{score_f}_combined_structure*"
     save_path = args.work_dir + f"dockbo/new_dataset/{score_f}_scores.csv"
-    if optimized_pose:
+    if not default_pose: # (optimized_pose) 
         filenm = "optimized_pose_from_" + filenm
         save_path = args.work_dir + f"dockbo/new_dataset/optimized_{score_f}_scores.csv"
     files = glob.glob(filenm) 
@@ -121,7 +115,7 @@ def read_only(score_f, optimized_pose=True):
 if __name__ == "__main__": 
     import argparse 
     parser = argparse.ArgumentParser()  
-    parser.add_argument('--score_f', default="dfire" ) # "dfire, cpydock, dfire2"
+    parser.add_argument('--score_f', default="dfire2" ) # "dfire, cpydock, dfire2"
     parser.add_argument('--work_dir', default='/home/nmaus/' ) 
     parser.add_argument('--known_pose_id', type=int, default=1 ) 
     parser.add_argument('--n_seqs', type=int, default=100_000 ) 
@@ -133,10 +127,11 @@ if __name__ == "__main__":
     if args.debug: 
         args.n_seqs = 2 
     if args.done_only:
-        read_only(args.score_f)
+        read_only(args.score_f, default_pose=args.default_pose)
     else:
         compute_scores(args) 
     #  CUDA_VISIBLE_DEVICES=1
+    # CUDA_VISIBLE_DEVICES=1 python3 compute_scores.py --default_pose True --done_only True
     
     #  conda activate og_lolbo_mols 
     # python3 compute_scores.py --debug True 
@@ -145,6 +140,13 @@ if __name__ == "__main__":
 
     ## *** tmux attach -t align2 
     #   doing dfire w/ actually optimizing poses 
+
+
+    ### 
+    # CUDA_VISIBLE_DEVICES=1 python3 compute_scores.py --default_pose True --done_only True
+    # CUDA_VISIBLE_DEVICES=1 python3 plotit.py 
+    # CUDA_VISIBLE_DEVICES=1 python plotit.py --score_f2 dfire
+
 
 
 

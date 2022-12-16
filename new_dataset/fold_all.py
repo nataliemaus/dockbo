@@ -48,6 +48,19 @@ def load_debug():
     return l_chain, h_chains, seq_ids 
 
 
+
+def fold_parent():
+    init_pyrosetta()
+    igfold_runner = IgFoldRunner()
+    h_chain = "EVQLVESGGGLVQPGGSLRLSCAASGYDFTHYGMNWVRQAPGKGLEWVGWINTYTGEPTYAADFKRRFTFSLDTSKSTAYLQMNSLRAEDTAVYYCAKYPYYYGTSHWYFDVWGQGTLVTVSS"
+    l_chain = "DIQLTQSPSSLSASVGDRVTITCSASQDISNYLNWYQQKPGKAPKVLIYFTSSLHSGVPSRFSGSGSGTDFTLTISSLQPEDFATYYCQQYSTVPWTFGQGTKVEIK"
+    fold_protein( 
+        igfold_runner=igfold_runner,
+        heavy_chain_seq=h_chain, 
+        save_path=f"folded_parent.pdb", 
+        light_chain_seq=l_chain,
+    )
+
 def fold(args):
     init_pyrosetta()
     igfold_runner = IgFoldRunner()
@@ -91,9 +104,14 @@ if __name__ == "__main__":
     # parser.add_argument('--work_dir', default='/home/nmaus/' )  
     parser.add_argument('--min_idx', type=int, default=None ) 
     parser.add_argument('--max_idx', type=int, default=None ) 
-    parser.add_argument('--debug', type=bool, default=False)  
+    parser.add_argument('--debug', type=bool, default=False) 
+    parser.add_argument('--parent_only', type=bool, default=True) 
+     
     args = parser.parse_args() # (96846,) 
-    fold(args) 
+    if args.parent_only:
+        fold_parent()
+    else:
+        fold(args) 
     # python3 fold_all.py --debug True --min_idx 1 --max_idx 2
     # jkgardner: conda activate og_lolbo_mols
     # gauss: conda activate igfold 

@@ -56,10 +56,10 @@ class DockBO():
         restraint_file="",
         include_lightchain_in_folded_structure=False,
         wt_seq_light_chain=None,
-        max_n_bo_steps=10_000,
-        absolute_max_n_steps=10_000,
+        max_n_bo_steps=500,
+        absolute_max_n_steps=2_000,
         bsz=1,
-        n_init=100,
+        n_init=20,
         init_n_epochs=60,
         update_n_epochs=2,
         learning_rte=0.01,
@@ -70,7 +70,7 @@ class DockBO():
         verbose_timing=False,
         scoring_func='dfire2',
         is_receptor='antibody',
-        max_n_tr_restarts=3, 
+        max_n_tr_restarts=1, 
         negate_difre2=False,
         init_bo_w_known_pose=False,
         cdr3_only_version=False, 
@@ -369,7 +369,8 @@ class DockBO():
         )
 
         # get combined indicies for receptor and ligand 
-        self.res_index, self.atom_index = get_indicies(self.adapter, self.default_receptor_indicies)
+        if self.scoring_func == 'dfire2':
+            self.res_index, self.atom_index = get_indicies(self.adapter, self.default_receptor_indicies)
         # get coords for receptor and ligand 
         self.receptor_coords, self.ligand_coords = get_coords(self.adapter)
 
@@ -515,6 +516,7 @@ class DockBO():
                 ligand=self.adapter.ligand_model, # self.ligand 
                 ligand_coordinates=self.ligand_coords,
             )
+            return_dict['energy'] = return_dict['energy']*-1 
         return return_dict 
 
 

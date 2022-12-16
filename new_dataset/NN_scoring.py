@@ -215,5 +215,5 @@ if __name__ == "__main__":
     args = parser.parse_args() 
     # conda activate lolbo_mols
     # tmux attach -t dockmodel
-    # CUDA_VISIBLE_DEVICES=0 python3 NN_scoring.py --lr 0.0001 --attention True   
+    # CUDA_VISIBLE_DEVICES=8 python3 NN_scoring.py --lr 0.00001 --attention True   
     train(args) 
